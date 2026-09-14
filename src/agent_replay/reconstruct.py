@@ -52,6 +52,29 @@ def _canonical_digest(events) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _expectation_coverage(events) -> dict[str, Any]:
+    comparable = sum(1 for event in events if event.expected)
+    total = len(events)
+    if total == 0:
+        status = "NO_EVENTS"
+    elif comparable == 0:
+        status = "NO_EXPECTATIONS"
+    elif comparable == total:
+        status = "COMPLETE"
+    else:
+        status = "PARTIAL"
+
+    return {
+        "status": status,
+        "events_with_expectations": comparable,
+        "total_events": total,
+        "ratio": round(comparable / total, 6) if total else 0.0,
+        "claim": (
+            "No divergence can be established for events lacking expected-state evidence."
+        ),
+    }
+
+
 def reconstruct(path: str) -> dict[str, Any]:
     source = Path(path)
     events = normalize_jsonl(source)
@@ -63,6 +86,7 @@ def reconstruct(path: str) -> dict[str, Any]:
         "input_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
         "canonical_sha256": _canonical_digest(events),
         "event_count": len(events),
+        "expectation_coverage": _expectation_coverage(events),
         "timeline": _timeline(events),
         "first_provable_divergence": divergences[0] if divergences else None,
         "divergences": divergences,
