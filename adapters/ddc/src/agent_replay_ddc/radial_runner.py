@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import json
 import os
@@ -8,6 +9,7 @@ import sys
 from typing import Any
 
 from .radial_mapping import incident_to_radial_spec
+from .render import render_radial
 
 
 class RadialAdapterError(RuntimeError):
@@ -104,12 +106,33 @@ def analyze_incident(incident: dict[str, Any]) -> dict[str, Any]:
 
 
 def main():
+    parser = argparse.ArgumentParser(prog="agent-replay-ddc-radial")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the complete machine-readable Radial result",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="maximum candidates in concise output (default: 10)",
+    )
+    args = parser.parse_args()
+
     try:
         incident = json.load(sys.stdin)
         if not isinstance(incident, dict):
             raise RadialAdapterError("incident input must be a JSON object")
-        json.dump(analyze_incident(incident), sys.stdout, indent=2, sort_keys=True)
-        sys.stdout.write("\n")
+
+        result = analyze_incident(incident)
+
+        if args.json:
+            json.dump(result, sys.stdout, indent=2, sort_keys=True)
+            sys.stdout.write("\n")
+        else:
+            print(render_radial(incident, result, limit=max(1, args.limit)))
+
     except Exception as exc:
         if isinstance(exc, RadialAdapterError):
             message = str(exc)
