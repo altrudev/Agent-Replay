@@ -14,11 +14,17 @@ def _fmt(value: Any) -> str:
 def render_text(report: dict[str, Any]) -> str:
     lines: list[str] = []
     first = report.get("first_provable_divergence")
+    coverage = report["expectation_coverage"]
 
     lines.append("AGENT REPLAY INCIDENT")
     lines.append(f"Evidence SHA-256: {report['input_sha256']}")
     lines.append(f"Canonical SHA-256: {report['canonical_sha256']}")
     lines.append(f"Events: {report['event_count']}")
+    lines.append(
+        "Expectation coverage: "
+        f"{coverage['status']} "
+        f"({coverage['events_with_expectations']}/{coverage['total_events']})"
+    )
     lines.append(f"Reproducibility: {report['reproducibility']}")
     lines.append(f"Confidence: {report['confidence']}")
     lines.append("")
@@ -33,6 +39,8 @@ def render_text(report: dict[str, Any]) -> str:
     lines.append("")
     if not first:
         lines.append("No provable divergence found.")
+        if coverage["status"] in {"NO_EXPECTATIONS", "PARTIAL"}:
+            lines.append(coverage["claim"])
         return "\n".join(lines)
 
     lines.append("FIRST PROVABLE DIVERGENCE")
