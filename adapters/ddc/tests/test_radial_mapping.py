@@ -21,10 +21,58 @@ def test_refund_incident_maps_to_radial_graph():
     assert approval_edge["relation"] == "authorizes"
     assert approval_edge["independently_mutable"] is True
     assert approval_edge["shared_atomic_boundary"] is False
+    assert approval_edge["context_bound"] is True
+    assert approval_edge["time_gap"] == 0.2
 
     payment_edge = edges[("evt_024", "evt_025")]
     assert payment_edge["relation"] == "commits"
     assert payment_edge["independently_mutable"] is True
+    assert payment_edge["shared_atomic_boundary"] is False
+    assert payment_edge["context_bound"] is True
+    assert payment_edge["time_gap"] == 0.2
+
+
+def test_unknown_radial_properties_are_neutral_not_inferred():
+    incident = {
+        "schema": "agent-replay.incident.v2",
+        "timeline": [
+            {
+                "event_id": "a",
+                "actor": "actor-one",
+                "kind": "policy.read",
+                "evidence": {"source": "one"},
+                "parent_ids": [],
+                "status": "VALID",
+            },
+            {
+                "event_id": "b",
+                "actor": "actor-two",
+                "kind": "payment.refund",
+                "evidence": {"source": "two"},
+                "parent_ids": ["a"],
+                "status": "DIVERGENT",
+            },
+        ],
+    }
+
+    graph = incident_to_radial_spec(incident)
+    nodes = {node["id"]: node for node in graph["nodes"]}
+    edge = graph["edges"][0]
+
+    # Different event kinds are not evidence of representation disagreement.
+    assert nodes["a"]["representation"] == "agent-replay-canonical-v2"
+    assert nodes["b"]["representation"] == "agent-replay-canonical-v2"
+
+    # Different actor labels are not enough to prove state independence.
+    assert edge["independently_mutable"] is False
+
+    # Unknown properties use conservative, non-triggering defaults.
+    assert edge["time_gap"] == 0.0
+    assert edge["shared_atomic_boundary"] is True
+    assert edge["freshness_bound"] is False
+    assert edge["context_bound"] is True
+    assert nodes["b"]["consequence"] == 0.0
+    assert nodes["b"]["reversible"] is True
 
 
 def test_wrong_incident_schema_fails_closed():
