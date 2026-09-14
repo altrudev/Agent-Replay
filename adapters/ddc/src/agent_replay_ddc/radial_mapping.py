@@ -38,17 +38,24 @@ def _relation(kind: str) -> str:
     return "depends_on"
 
 
-def _consequence(event: dict[str, Any]) -> float:
-    if event.get("status") != "DIVERGENT":
-        return 0.0
-    kind = str(event.get("kind", "")).lower()
-    if any(token in kind for token in ("payment", "refund", "delete", "commit")):
-        return 0.9
-    if "approval" in kind or "auth" in kind:
-        return 0.8
-    if "policy" in kind:
-        return 0.7
-    return 0.5
+def _radial(event: dict[str, Any]) -> dict[str, Any]:
+    evidence = event.get("evidence")
+    if not isinstance(evidence, dict):
+        return {}
+    value = evidence.get("radial")
+    return value if isinstance(value, dict) else {}
+
+
+def _bool_hint(meta: dict[str, Any], key: str, default: bool) -> bool:
+    value = meta.get(key)
+    return value if isinstance(value, bool) else default
+
+
+def _float_hint(meta: dict[str, Any], key: str, default: float) -> float:
+    value = meta.get(key)
+    if isinstance(value, (int, float)):
+        return max(0.0, min(1.0, float(value)))
+    return default
 
 
 def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
@@ -73,45 +80,58 @@ def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
 
         kind = str(event.get("kind", "unknown"))
         actor = str(event.get("actor", "unknown"))
+        radial = _radial(event)
+
+        representation = radial.get("representation")
+        if not isinstance(representation, str) or not representation:
+            representation = "agent-replay-canonical-v2"
+
         nodes.append(
             {
                 "id": event_id,
                 "dimensions": sorted(_kind_dimensions(kind)),
-                "mutable": True,
+                "mutable": _bool_hint(radial, "mutable", False),
                 "authority": actor,
-                "representation": kind,
-                "consequence": _consequence(event),
+                "representation": representation,
+                "consequence": _float_hint(radial, "consequence", 0.0),
                 "observable": bool(event.get("evidence")),
-                "reversible": not any(
-                    token in kind.lower()
-                    for token in ("payment", "refund", "delete", "commit")
-                ),
+                "reversible": _bool_hint(radial, "reversible", True),
             }
         )
 
     by_id = {event["event_id"]: event for event in timeline}
+
     for event in timeline:
         dst = event["event_id"]
         parents = event.get("parent_ids") or []
+        child_radial = _radial(event)
+
         for src in parents:
             if src not in by_id:
                 raise ValueError(f"unknown parent event: {src}->{dst}")
 
-            parent = by_id[src]
             relation = _relation(str(event.get("kind", "")))
-            different_actor = parent.get("actor") != event.get("actor")
-            different_repr = parent.get("kind") != event.get("kind")
 
             edges.append(
                 {
                     "src": src,
                     "dst": dst,
                     "relation": relation,
-                    "time_gap": 0.5,
-                    "independently_mutable": different_actor,
-                    "shared_atomic_boundary": False,
-                    "freshness_bound": False,
-                    "context_bound": not different_repr,
+                    # Unknown structural properties are mapped to neutral values.
+                    # Radial must not infer a risk solely from event naming.
+                    "time_gap": _float_hint(child_radial, "time_gap", 0.0),
+                    "independently_mutable": _bool_hint(
+                        child_radial, "independently_mutable", False
+                    ),
+                    "shared_atomic_boundary": _bool_hint(
+                        child_radial, "shared_atomic_boundary", True
+                    ),
+                    "freshness_bound": _bool_hint(
+                        child_radial, "freshness_bound", False
+                    ),
+                    "context_bound": _bool_hint(
+                        child_radial, "context_bound", True
+                    ),
                 }
             )
 
