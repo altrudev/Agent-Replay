@@ -10,12 +10,14 @@ It is **not** an observability platform, agent runtime, policy engine, or monito
 
 ## v0.3 — OpenTelemetry ingestion
 
-Agent Replay can now reconstruct directly from OpenTelemetry OTLP JSON.
+Agent Replay can reconstruct directly from OpenTelemetry OTLP JSON.
 
 ```bash
 python -m pip install -e .
 
-agent-replay reconstruct   examples/refund-750/otel.json   --format otel
+agent-replay reconstruct \
+  examples/refund-750/otel.json \
+  --format otel
 ```
 
 That performs:
@@ -38,25 +40,30 @@ causal / temporal chain
 evidence attribution
 ```
 
-The same input can be normalized explicitly for inspection:
+Explicit normalization is also available:
 
 ```bash
-agent-replay ingest otel   examples/refund-750/otel.json   -o canonical.jsonl
+agent-replay ingest otel \
+  examples/refund-750/otel.json \
+  -o canonical.jsonl
 
 agent-replay reconstruct canonical.jsonl
 ```
 
-Machine-readable incident output:
+Machine-readable output:
 
 ```bash
-agent-replay reconstruct   examples/refund-750/otel.json   --format otel   --json
+agent-replay reconstruct \
+  examples/refund-750/otel.json \
+  --format otel \
+  --json
 ```
 
 ## OpenTelemetry evidence convention
 
 Generic OpenTelemetry establishes chronology and parent/span provenance, but it does not inherently say what **should** have happened.
 
-Agent Replay therefore supports explicit expected/observed attributes:
+Agent Replay therefore supports:
 
 ```text
 agent.replay.expected.<field>
@@ -66,19 +73,11 @@ agent.replay.observed.<field>
 Example:
 
 ```json
-{
-  "key": "agent.replay.expected.refund_amount",
-  "value": {"intValue": "200"}
-}
+{"key":"agent.replay.expected.refund_amount","value":{"intValue":"200"}}
 ```
 
-and:
-
 ```json
-{
-  "key": "agent.replay.observed.refund_amount",
-  "value": {"intValue": "750"}
-}
+{"key":"agent.replay.observed.refund_amount","value":{"intValue":"750"}}
 ```
 
 Optional actor labels are read from, in priority order:
@@ -89,43 +88,35 @@ gen_ai.agent.name
 service.name
 ```
 
-The original OTLP provenance is retained, including:
-
-- trace ID
-- span ID
-- parent span relationship
-- instrumentation scope name/version
-- OpenTelemetry status code/message
+Original OTLP provenance is retained, including trace ID, span ID, parent relationship, instrumentation scope, and OTel status.
 
 ### Evidence sufficiency
 
-Agent Replay does **not** interpret the absence of expected-state evidence as proof that execution was correct.
+Agent Replay does **not** interpret missing expectations as proof of correctness.
 
-Every incident includes:
+Each incident reports:
 
 ```text
 Expectation coverage: COMPLETE | PARTIAL | NO_EXPECTATIONS | NO_EVENTS
 ```
 
-For ordinary telemetry with no Agent Replay expectation attributes:
+When normative evidence is absent:
 
 ```text
 No provable divergence found.
 No divergence can be established for events lacking expected-state evidence.
 ```
 
-This is deliberate. The engine does not manufacture normative claims from telemetry.
-
 ## Example incident
 
-The repository includes the same refund incident in two forms:
+The included refund incident exists in both formats:
 
 ```text
-examples/refund-750/events.jsonl   canonical Agent Replay
-examples/refund-750/otel.json      OpenTelemetry OTLP JSON
+examples/refund-750/events.jsonl
+examples/refund-750/otel.json
 ```
 
-The expected reconstruction is:
+Expected reconstruction:
 
 ```text
 AGENT REPLAY INCIDENT
@@ -148,39 +139,22 @@ policy.read
 policy_version
 expected=v19
 observed=v17
-
-CAUSAL CHAIN
-policy.read
-    ↓
-refund.generated
-    ↓
-approval.check
-    ↓
-payment.refund
 ```
 
 ## Forensic integrity
 
-Agent Replay validates the evidence graph before reconstruction.
-
-It fails closed on:
-
-- invalid or timezone-less timestamps
-- duplicate event IDs
-- unknown parents
-- duplicate parent IDs
-- self-parenting
-- parent events occurring after their child
-- causal graph cycles
+Agent Replay fails closed on invalid or timezone-less timestamps, duplicate event IDs, unknown or duplicate parents, self-parenting, future-parent edges, and causal cycles.
 
 Timestamps are normalized to UTC before ordering.
 
-Each reconstruction includes two hashes:
+Each reconstruction contains:
 
 ```text
-input_sha256       exact supplied evidence bytes
-canonical_sha256   normalized canonical incident representation
+input_sha256
+canonical_sha256
 ```
+
+The first hashes the exact supplied evidence bytes. The second hashes the normalized canonical representation.
 
 ## Causality
 
@@ -192,9 +166,7 @@ EXPLICITLY_DOWNSTREAM
 TEMPORALLY_DOWNSTREAM
 ```
 
-A later event is **not** described as causal merely because it happened later.
-
-Explicit causality comes from evidence relationships such as canonical `parent_ids` or OpenTelemetry `parentSpanId`.
+A later event is not described as causal merely because it happened later.
 
 ## Attribution
 
@@ -202,28 +174,90 @@ Current roles are:
 
 - `PRIMARY` — actor label owns the earliest provable divergence
 - `CONTRIBUTING` — actor label owns an explicitly downstream divergent event
-- `DOWNSTREAM` — actor label owns a later divergence without an evidenced causal edge
+- `DOWNSTREAM` — later divergent evidence exists without an evidenced causal edge
 
-Actor identities are **evidence labels only**. Agent Replay does not independently authenticate the entity behind an actor string.
+Actor identities are evidence labels only. Agent Replay does not independently authenticate the entity behind an actor string.
 
-These roles are forensic classifications, not legal or organizational assignments of blame.
+## Optional DDC Radial review
 
-## Canonical input
+Agent Replay remains fully standalone. DDC is an optional second-order review layer.
 
-Canonical JSONL remains a first-class format:
+Install it separately:
 
-```json
-{
-  "event_id": "evt_023",
-  "timestamp": "2026-09-14T12:04:27Z",
-  "actor": "refund-agent",
-  "kind": "refund.generated",
-  "parent_ids": ["evt_019"],
-  "observed": {"refund_amount": 750},
-  "expected": {"refund_amount": 200},
-  "evidence": {"source": "tool.jsonl"}
-}
+```bash
+python -m pip install -e ./adapters/ddc
+export DDC_RADIAL_ROOT=/path/to/ddc
 ```
+
+### One-command review
+
+For OTLP input:
+
+```bash
+agent-replay-ddc review \
+  examples/refund-750/otel.json \
+  --format otel
+```
+
+That prints the normal Agent Replay incident followed by a concise DDC Radial appendix:
+
+```text
+DDC RADIAL REVIEW
+Engine: ddc-radial-frequency/1.0
+Candidates: ...
+
+1. Unsafe retry / duplicate effect
+   Score: ...
+   Subjects:
+     - approval.check (...)
+     - payment.refund (...)
+   Why: ...
+   Falsification: ...
+
+Note: DDC Radial findings are non-authoritative CANDIDATE hypotheses.
+```
+
+Full machine-readable combined output:
+
+```bash
+agent-replay-ddc review \
+  examples/refund-750/otel.json \
+  --format otel \
+  --json
+```
+
+The envelope schema is:
+
+```text
+agent-replay.ddc-review.v1
+```
+
+You can still run Radial directly over incident JSON:
+
+```bash
+agent-replay reconstruct \
+  examples/refund-750/otel.json \
+  --format otel \
+  --json \
+  | agent-replay-ddc-radial
+```
+
+Use `--json` on the Radial command for full feature vectors:
+
+```bash
+... | agent-replay-ddc-radial --json
+```
+
+DDC Radial findings remain:
+
+```text
+authoritative = false
+disposition = CANDIDATE
+```
+
+They are structural fault hypotheses and falsification proposals, not Agent Replay findings, blame assignments, or execution authority.
+
+Deleting `adapters/ddc/` leaves Agent Replay fully functional.
 
 ## Machine-readable incident contract
 
@@ -239,43 +273,21 @@ Schema:
 schemas/incident-v2.schema.json
 ```
 
-## Optional DDC Radial analysis
-
-Agent Replay does not require DDC.
-
-The optional package under `adapters/ddc/` maps a completed Agent Replay incident into the private DDC Radial Frequency engine.
-
-```bash
-python -m pip install -e ./adapters/ddc
-
-export DDC_RADIAL_ROOT=/path/to/ddc
-
-agent-replay reconstruct   examples/refund-750/otel.json   --format otel   --json   | agent-replay-ddc-radial
-```
-
-DDC Radial findings remain:
-
-```text
-authoritative = false
-disposition = CANDIDATE
-```
-
-They are structural fault hypotheses and falsification proposals, not Agent Replay findings, blame assignments, or execution authority.
-
-Deleting `adapters/ddc/` leaves Agent Replay fully functional.
-
-## Standalone boundary
-
-The core package has **zero dependency on DDC, DSR, DDCRE, ddcal.ca, or any Altru.dev infrastructure**.
-
-A clean machine only needs Python and this repository.
-
 ## Development
+
+Standalone core:
 
 ```bash
 python -m pip install -e .
 python -m pip install pytest
 pytest -q
+```
+
+Optional DDC adapter:
+
+```bash
+python -m pip install -e ./adapters/ddc
+pytest -q adapters/ddc/tests
 ```
 
 No hosted infrastructure or GitHub Actions are required.
