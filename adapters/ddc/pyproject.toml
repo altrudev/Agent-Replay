@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-replay-ddc"
+version = "0.1.0"
+description = "Optional DDC adapter for Agent Replay"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "Valentyn Rukhaylo"}]
+dependencies = ["agent-replay>=0.1.0"]
+
+[project.scripts]
+agent-replay-ddc = "agent_replay_ddc.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
