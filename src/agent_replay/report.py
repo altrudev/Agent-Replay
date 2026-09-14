@@ -17,6 +17,7 @@ def render_text(report: dict[str, Any]) -> str:
 
     lines.append("AGENT REPLAY INCIDENT")
     lines.append(f"Evidence SHA-256: {report['input_sha256']}")
+    lines.append(f"Canonical SHA-256: {report['canonical_sha256']}")
     lines.append(f"Events: {report['event_count']}")
     lines.append(f"Reproducibility: {report['reproducibility']}")
     lines.append(f"Confidence: {report['confidence']}")
@@ -36,7 +37,7 @@ def render_text(report: dict[str, Any]) -> str:
 
     lines.append("FIRST PROVABLE DIVERGENCE")
     lines.append(f"{first['timestamp']}  {first['event_id']}  {first['kind']}")
-    lines.append(f"Actor: {first['actor']}")
+    lines.append(f"Actor label: {first['actor']}")
     for mismatch in first["mismatches"]:
         lines.append(
             f"- {mismatch['field']}: expected={_fmt(mismatch['expected'])} "
@@ -53,6 +54,7 @@ def render_text(report: dict[str, Any]) -> str:
 
     lines.append("")
     lines.append("ATTRIBUTION")
+    lines.append(report["attribution_scope"])
     for item in report["attribution"]:
         lines.append(
             f"- {item['actor']}: {item['role']} "
