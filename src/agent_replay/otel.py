@@ -133,6 +133,10 @@ def _scope_metadata(scope_block: dict[str, Any]) -> dict[str, str]:
     return out
 
 
+def _event_id(trace_id: str, span_id: str) -> str:
+    return f"span:{trace_id}:{span_id}"
+
+
 def otlp_json_to_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
     resource_spans = payload.get("resourceSpans")
     if not isinstance(resource_spans, list):
@@ -140,8 +144,8 @@ def otlp_json_to_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
             "OTLP JSON must contain resourceSpans[]"
         )
 
-    events: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    flattened: list[tuple[dict[str, Any], dict[str, Any], dict[str, str]]] = []
+    available: set[tuple[str, str]] = set()
 
     for resource_block in resource_spans:
         if not isinstance(resource_block, dict):
@@ -162,69 +166,78 @@ def otlp_json_to_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
             for span in spans:
                 if not isinstance(span, dict):
                     continue
-
+                trace_id = span.get("traceId")
                 span_id = span.get("spanId")
+                if not isinstance(trace_id, str) or not trace_id:
+                    raise OpenTelemetryFormatError("traceId is required")
                 if not isinstance(span_id, str) or not span_id:
                     raise OpenTelemetryFormatError("spanId is required")
-                event_id = f"span:{span_id}"
-                if event_id in seen:
+                key = (trace_id, span_id)
+                if key in available:
                     raise OpenTelemetryFormatError(
-                        f"duplicate spanId: {span_id}"
+                        f"duplicate span identity: traceId={trace_id} spanId={span_id}"
                     )
-                seen.add(event_id)
+                available.add(key)
+                flattened.append((span, resource_attrs, scope_meta))
 
-                span_attrs = _attributes(span.get("attributes"))
-                expected, observed = _split_expected_observed(span_attrs)
-
-                parent_span_id = span.get("parentSpanId")
-                parent_ids = (
-                    [f"span:{parent_span_id}"]
-                    if isinstance(parent_span_id, str) and parent_span_id
-                    else []
-                )
-
-                trace_id = span.get("traceId")
-                name = span.get("name")
-                kind_override = span_attrs.get("agent.replay.kind")
-                kind = (
-                    kind_override
-                    if isinstance(kind_override, str) and kind_override
-                    else name
-                )
-                if not isinstance(kind, str) or not kind:
-                    kind = "otel.span"
-
-                evidence: dict[str, Any] = {
-                    "source": "opentelemetry",
-                    "trace_id": trace_id,
-                    "span_id": span_id,
-                }
-                evidence.update(scope_meta)
-
-                status = span.get("status")
-                if isinstance(status, dict):
-                    if "code" in status:
-                        evidence["otel_status_code"] = status["code"]
-                    if isinstance(status.get("message"), str):
-                        evidence["otel_status_message"] = status["message"]
-
-                events.append(
-                    {
-                        "event_id": event_id,
-                        "timestamp": _timestamp_from_unix_nano(
-                            span.get("startTimeUnixNano")
-                        ),
-                        "actor": _resource_actor(resource_attrs, span_attrs),
-                        "kind": kind,
-                        "parent_ids": parent_ids,
-                        "observed": observed,
-                        "expected": expected,
-                        "evidence": evidence,
-                    }
-                )
-
-    if not events:
+    if not flattened:
         raise OpenTelemetryFormatError("OTLP JSON contained no spans")
+
+    events: list[dict[str, Any]] = []
+
+    for span, resource_attrs, scope_meta in flattened:
+        trace_id = span["traceId"]
+        span_id = span["spanId"]
+        span_attrs = _attributes(span.get("attributes"))
+        expected, observed = _split_expected_observed(span_attrs)
+
+        parent_span_id = span.get("parentSpanId")
+        parent_ids: list[str] = []
+
+        evidence: dict[str, Any] = {
+            "source": "opentelemetry",
+            "trace_id": trace_id,
+            "span_id": span_id,
+        }
+        evidence.update(scope_meta)
+
+        if isinstance(parent_span_id, str) and parent_span_id:
+            if (trace_id, parent_span_id) in available:
+                parent_ids.append(_event_id(trace_id, parent_span_id))
+            else:
+                evidence["external_parent_span_id"] = parent_span_id
+
+        name = span.get("name")
+        kind_override = span_attrs.get("agent.replay.kind")
+        kind = (
+            kind_override
+            if isinstance(kind_override, str) and kind_override
+            else name
+        )
+        if not isinstance(kind, str) or not kind:
+            kind = "otel.span"
+
+        status = span.get("status")
+        if isinstance(status, dict):
+            if "code" in status:
+                evidence["otel_status_code"] = status["code"]
+            if isinstance(status.get("message"), str):
+                evidence["otel_status_message"] = status["message"]
+
+        events.append(
+            {
+                "event_id": _event_id(trace_id, span_id),
+                "timestamp": _timestamp_from_unix_nano(
+                    span.get("startTimeUnixNano")
+                ),
+                "actor": _resource_actor(resource_attrs, span_attrs),
+                "kind": kind,
+                "parent_ids": parent_ids,
+                "observed": observed,
+                "expected": expected,
+                "evidence": evidence,
+            }
+        )
 
     return events
 
