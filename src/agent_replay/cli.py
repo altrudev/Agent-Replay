@@ -2,6 +2,7 @@ import argparse
 import json
 
 from .reconstruct import reconstruct
+from .report import render_text
 
 
 def main():
@@ -13,11 +14,20 @@ def main():
         help="Reconstruct an incident from a JSONL evidence stream",
     )
     reconstruct_parser.add_argument("input")
+    reconstruct_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit the machine-readable incident document",
+    )
 
     args = parser.parse_args()
 
     if args.command == "reconstruct":
-        print(json.dumps(reconstruct(args.input), indent=2, sort_keys=True))
+        incident = reconstruct(args.input)
+        if args.json:
+            print(json.dumps(incident, indent=2, sort_keys=True))
+        else:
+            print(render_text(incident))
 
 
 if __name__ == "__main__":
