@@ -58,6 +58,11 @@ def _float_hint(meta: dict[str, Any], key: str, default: float) -> float:
     return default
 
 
+def _string_hint(meta: dict[str, Any], key: str, default: str = "") -> str:
+    value = meta.get(key)
+    return value if isinstance(value, str) and value else default
+
+
 def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
     if incident.get("schema") != "agent-replay.incident.v2":
         raise ValueError("DDC Radial adapter requires agent-replay.incident.v2")
@@ -79,19 +84,22 @@ def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
         seen.add(event_id)
 
         kind = str(event.get("kind", "unknown"))
-        actor = str(event.get("actor", "unknown"))
         radial = _radial(event)
 
-        representation = radial.get("representation")
-        if not isinstance(representation, str) or not representation:
-            representation = "agent-replay-canonical-v2"
+        representation = _string_hint(
+            radial,
+            "representation",
+            "agent-replay-canonical-v2",
+        )
 
         nodes.append(
             {
                 "id": event_id,
                 "dimensions": sorted(_kind_dimensions(kind)),
                 "mutable": _bool_hint(radial, "mutable", False),
-                "authority": actor,
+                # Actor identity is not the same thing as authority identity.
+                # Authority distance is only evidenced by an explicit hint.
+                "authority": _string_hint(radial, "authority", ""),
                 "representation": representation,
                 "consequence": _float_hint(radial, "consequence", 0.0),
                 "observable": bool(event.get("evidence")),
@@ -117,8 +125,6 @@ def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
                     "src": src,
                     "dst": dst,
                     "relation": relation,
-                    # Unknown structural properties are mapped to neutral values.
-                    # Radial must not infer a risk solely from event naming.
                     "time_gap": _float_hint(child_radial, "time_gap", 0.0),
                     "independently_mutable": _bool_hint(
                         child_radial, "independently_mutable", False
