@@ -17,6 +17,11 @@ def test_refund_incident_maps_to_radial_graph():
     assert nodes["evt_025"]["reversible"] is False
     assert nodes["evt_025"]["consequence"] == 0.9
 
+    # Actor labels are not automatically treated as authority domains.
+    assert nodes["evt_023"]["authority"] == ""
+    assert nodes["evt_024"]["authority"] == ""
+    assert nodes["evt_025"]["authority"] == ""
+
     approval_edge = edges[("evt_023", "evt_024")]
     assert approval_edge["relation"] == "authorizes"
     assert approval_edge["independently_mutable"] is True
@@ -59,20 +64,43 @@ def test_unknown_radial_properties_are_neutral_not_inferred():
     nodes = {node["id"]: node for node in graph["nodes"]}
     edge = graph["edges"][0]
 
-    # Different event kinds are not evidence of representation disagreement.
     assert nodes["a"]["representation"] == "agent-replay-canonical-v2"
     assert nodes["b"]["representation"] == "agent-replay-canonical-v2"
 
-    # Different actor labels are not enough to prove state independence.
+    # Different actor labels establish neither state independence nor
+    # distinct authority domains.
+    assert nodes["a"]["authority"] == ""
+    assert nodes["b"]["authority"] == ""
     assert edge["independently_mutable"] is False
 
-    # Unknown properties use conservative, non-triggering defaults.
     assert edge["time_gap"] == 0.0
     assert edge["shared_atomic_boundary"] is True
     assert edge["freshness_bound"] is False
     assert edge["context_bound"] is True
     assert nodes["b"]["consequence"] == 0.0
     assert nodes["b"]["reversible"] is True
+
+
+def test_explicit_authority_hint_is_preserved():
+    incident = {
+        "schema": "agent-replay.incident.v2",
+        "timeline": [
+            {
+                "event_id": "a",
+                "actor": "service-a",
+                "kind": "approval.check",
+                "evidence": {
+                    "source": "one",
+                    "radial": {"authority": "issuer-A"},
+                },
+                "parent_ids": [],
+                "status": "VALID",
+            }
+        ],
+    }
+
+    graph = incident_to_radial_spec(incident)
+    assert graph["nodes"][0]["authority"] == "issuer-A"
 
 
 def test_wrong_incident_schema_fails_closed():
