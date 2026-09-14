@@ -14,6 +14,20 @@ def test_first_divergence():
     assert first["mismatches"][0]["expected"] == "v19"
 
 
+def test_full_timeline_preserves_valid_and_divergent_events():
+    report = reconstruct("examples/refund-750/events.jsonl")
+
+    assert [item["event_id"] for item in report["timeline"]] == [
+        "evt_001",
+        "evt_019",
+        "evt_023",
+        "evt_024",
+        "evt_025",
+    ]
+    assert report["timeline"][0]["status"] == "VALID"
+    assert report["timeline"][1]["status"] == "DIVERGENT"
+
+
 def test_explicit_causal_chain_and_attribution():
     report = reconstruct("examples/refund-750/events.jsonl")
     relationships = {
@@ -55,6 +69,7 @@ def test_no_invented_causality_without_parent_links(tmp_path: Path):
 def test_text_report_contains_core_findings():
     text = render_text(reconstruct("examples/refund-750/events.jsonl"))
 
+    assert "TIMELINE" in text
     assert "FIRST PROVABLE DIVERGENCE" in text
     assert "policy_version: expected=v19 observed=v17" in text
     assert "refund-agent: PRIMARY" in text
