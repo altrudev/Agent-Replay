@@ -16,8 +16,8 @@ def test_otlp_refund_fixture_normalizes_to_canonical_events(tmp_path: Path):
     events = load_otlp_json("examples/refund-750/otel.json")
 
     assert len(events) == 5
-    assert events[0]["event_id"] == "span:001"
-    assert events[1]["parent_ids"] == ["span:001"]
+    assert events[0]["event_id"] == "span:trace-refund-750:001"
+    assert events[1]["parent_ids"] == ["span:trace-refund-750:001"]
     assert events[1]["expected"]["policy_version"] == "v19"
     assert events[1]["observed"]["policy_version"] == "v17"
     assert events[2]["expected"]["refund_amount"] == 200
@@ -32,7 +32,10 @@ def test_otlp_refund_fixture_normalizes_to_canonical_events(tmp_path: Path):
 
     assert report["event_count"] == 5
     assert report["expectation_coverage"]["status"] == "COMPLETE"
-    assert report["first_provable_divergence"]["event_id"] == "span:019"
+    assert (
+        report["first_provable_divergence"]["event_id"]
+        == "span:trace-refund-750:019"
+    )
     assert report["confidence"] == "HIGH"
 
 
@@ -67,6 +70,52 @@ def test_generic_otel_without_expectations_does_not_invent_failure(tmp_path: Pat
     assert report["divergences"] == []
     assert report["expectation_coverage"]["status"] == "NO_EXPECTATIONS"
     assert report["reproducibility"] == "NO_DIVERGENCE_FOUND"
+
+
+def test_partial_trace_preserves_external_parent_without_false_edge():
+    payload = {
+        "resourceSpans": [{
+            "scopeSpans": [{
+                "spans": [{
+                    "traceId": "t",
+                    "spanId": "child",
+                    "parentSpanId": "not-exported",
+                    "name": "tool.call",
+                    "startTimeUnixNano": "1704067200000000000"
+                }]
+            }]
+        }]
+    }
+
+    events = otlp_json_to_events(payload)
+    assert events[0]["parent_ids"] == []
+    assert events[0]["evidence"]["external_parent_span_id"] == "not-exported"
+
+
+def test_span_identity_is_scoped_by_trace():
+    payload = {
+        "resourceSpans": [{
+            "scopeSpans": [{
+                "spans": [
+                    {
+                        "traceId": "trace-a",
+                        "spanId": "same",
+                        "name": "a",
+                        "startTimeUnixNano": "1704067200000000000"
+                    },
+                    {
+                        "traceId": "trace-b",
+                        "spanId": "same",
+                        "name": "b",
+                        "startTimeUnixNano": "1704067201000000000"
+                    }
+                ]
+            }]
+        }]
+    }
+
+    events = otlp_json_to_events(payload)
+    assert events[0]["event_id"] != events[1]["event_id"]
 
 
 def test_legacy_instrumentation_library_spans_are_supported():
