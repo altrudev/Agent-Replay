@@ -1,0 +1,4 @@
+{"event_id":"evt_001","timestamp":"2026-09-14T12:04:19Z","actor":"refund-agent","kind":"task.accepted","observed":{"refund_limit":200},"expected":{"refund_limit":200},"evidence":{"source":"task.jsonl"}}
+{"event_id":"evt_019","timestamp":"2026-09-14T12:04:25Z","actor":"refund-agent","kind":"policy.read","observed":{"policy_version":"v17"},"expected":{"policy_version":"v19"},"evidence":{"source":"mcp.jsonl"}}
+{"event_id":"evt_023","timestamp":"2026-09-14T12:04:27Z","actor":"refund-agent","kind":"refund.generated","observed":{"refund_amount":750},"expected":{"refund_amount":200},"evidence":{"source":"tool.jsonl"}}
+{"event_id":"evt_024","timestamp":"2026-09-14T12:04:28Z","actor":"approval-gate","kind":"approval.check","observed":{"approved":false,"executed":true},"expected":{"approved":true,"executed":true},"evidence":{"source":"approval.jsonl"}}
