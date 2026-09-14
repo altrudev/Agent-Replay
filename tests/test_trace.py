@@ -51,10 +51,9 @@ def test_trace_uses_caller_supplied_key(tmp_path, monkeypatch):
         assert public_key_or_jwk["x"] == "trusted"
         assert public_key_or_jwk != record["cnf"]["jwk"]
 
-    fake = types.SimpleNamespace(
-        validate_json=validate_json,
-        verify_record=verify_record,
-    )
+    fake = types.ModuleType("agentrust_trace")
+    fake.validate_json = validate_json
+    fake.verify_record = verify_record
     monkeypatch.setitem(sys.modules, "agentrust_trace", fake)
 
     summary = verify_trace_record(record_path, key_path)
