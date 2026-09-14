@@ -22,6 +22,14 @@ def render_text(report: dict[str, Any]) -> str:
     lines.append(f"Confidence: {report['confidence']}")
     lines.append("")
 
+    lines.append("TIMELINE")
+    for item in report["timeline"]:
+        lines.append(
+            f"- {item['timestamp']} {item['event_id']} {item['kind']} "
+            f"[{item['status']}]"
+        )
+
+    lines.append("")
     if not first:
         lines.append("No provable divergence found.")
         return "\n".join(lines)
