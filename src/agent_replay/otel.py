@@ -91,6 +91,7 @@ def _split_expected_observed(
 def _radial_hints(attrs: dict[str, Any]) -> dict[str, Any]:
     prefix = "agent.replay.radial."
     allowed = {
+        "authority",
         "mutable",
         "representation",
         "consequence",
