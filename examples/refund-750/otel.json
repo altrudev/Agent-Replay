@@ -1,0 +1,76 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {"key":"service.name","value":{"stringValue":"refund-agent"}}
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {"name":"agent-replay-demo","version":"1.0"},
+          "spans": [
+            {
+              "traceId":"trace-refund-750",
+              "spanId":"001",
+              "name":"task.accepted",
+              "startTimeUnixNano":"1789416259000000000",
+              "attributes":[
+                {"key":"agent.replay.expected.refund_limit","value":{"intValue":"200"}},
+                {"key":"agent.replay.observed.refund_limit","value":{"intValue":"200"}}
+              ]
+            },
+            {
+              "traceId":"trace-refund-750",
+              "spanId":"019",
+              "parentSpanId":"001",
+              "name":"policy.read",
+              "startTimeUnixNano":"1789416265000000000",
+              "attributes":[
+                {"key":"agent.replay.expected.policy_version","value":{"stringValue":"v19"}},
+                {"key":"agent.replay.observed.policy_version","value":{"stringValue":"v17"}}
+              ]
+            },
+            {
+              "traceId":"trace-refund-750",
+              "spanId":"023",
+              "parentSpanId":"019",
+              "name":"refund.generated",
+              "startTimeUnixNano":"1789416267000000000",
+              "attributes":[
+                {"key":"agent.replay.expected.refund_amount","value":{"intValue":"200"}},
+                {"key":"agent.replay.observed.refund_amount","value":{"intValue":"750"}}
+              ]
+            },
+            {
+              "traceId":"trace-refund-750",
+              "spanId":"024",
+              "parentSpanId":"023",
+              "name":"approval.check",
+              "startTimeUnixNano":"1789416268000000000",
+              "attributes":[
+                {"key":"agent.name","value":{"stringValue":"approval-gate"}},
+                {"key":"agent.replay.expected.approved","value":{"boolValue":true}},
+                {"key":"agent.replay.observed.approved","value":{"boolValue":false}},
+                {"key":"agent.replay.expected.executed","value":{"boolValue":true}},
+                {"key":"agent.replay.observed.executed","value":{"boolValue":true}}
+              ]
+            },
+            {
+              "traceId":"trace-refund-750",
+              "spanId":"025",
+              "parentSpanId":"024",
+              "name":"payment.refund",
+              "startTimeUnixNano":"1789416269000000000",
+              "attributes":[
+                {"key":"agent.name","value":{"stringValue":"payment-api"}},
+                {"key":"agent.replay.expected.refund_amount","value":{"intValue":"200"}},
+                {"key":"agent.replay.observed.refund_amount","value":{"intValue":"750"}}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
