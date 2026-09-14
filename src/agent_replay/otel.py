@@ -88,6 +88,29 @@ def _split_expected_observed(
     return expected, observed
 
 
+def _radial_hints(attrs: dict[str, Any]) -> dict[str, Any]:
+    prefix = "agent.replay.radial."
+    allowed = {
+        "mutable",
+        "representation",
+        "consequence",
+        "reversible",
+        "time_gap",
+        "independently_mutable",
+        "shared_atomic_boundary",
+        "freshness_bound",
+        "context_bound",
+    }
+    out: dict[str, Any] = {}
+    for key, value in attrs.items():
+        if not key.startswith(prefix):
+            continue
+        name = key[len(prefix):]
+        if name in allowed:
+            out[name] = value
+    return out
+
+
 def _resource_actor(
     resource_attrs: dict[str, Any],
     span_attrs: dict[str, Any],
@@ -200,6 +223,10 @@ def otlp_json_to_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
             "span_id": span_id,
         }
         evidence.update(scope_meta)
+
+        radial = _radial_hints(span_attrs)
+        if radial:
+            evidence["radial"] = radial
 
         if isinstance(parent_span_id, str) and parent_span_id:
             if (trace_id, parent_span_id) in available:
