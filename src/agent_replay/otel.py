@@ -13,23 +13,33 @@ class OpenTelemetryFormatError(ValueError):
 def _otel_value(value: Any) -> Any:
     if not isinstance(value, dict):
         return value
-    for key in (
-        "stringValue",
-        "boolValue",
-        "intValue",
-        "doubleValue",
-        "bytesValue",
-    ):
-        if key in value:
-            return value[key]
+    if "stringValue" in value:
+        return value["stringValue"]
+    if "boolValue" in value:
+        return bool(value["boolValue"])
+    if "intValue" in value:
+        try:
+            return int(value["intValue"])
+        except (TypeError, ValueError):
+            return value["intValue"]
+    if "doubleValue" in value:
+        try:
+            return float(value["doubleValue"])
+        except (TypeError, ValueError):
+            return value["doubleValue"]
+    if "bytesValue" in value:
+        return value["bytesValue"]
     if "arrayValue" in value:
-        values = value["arrayValue"].get("values", [])
+        array = value["arrayValue"]
+        values = array.get("values", []) if isinstance(array, dict) else []
         return [_otel_value(item) for item in values]
     if "kvlistValue" in value:
+        kvlist = value["kvlistValue"]
+        values = kvlist.get("values", []) if isinstance(kvlist, dict) else []
         return {
             item["key"]: _otel_value(item.get("value"))
-            for item in value["kvlistValue"].get("values", [])
-            if isinstance(item, dict) and "key" in item
+            for item in values
+            if isinstance(item, dict) and isinstance(item.get("key"), str)
         }
     return value
 
@@ -96,6 +106,33 @@ def _resource_actor(
     return "unknown"
 
 
+def _scope_blocks(resource_block: dict[str, Any]) -> list[dict[str, Any]]:
+    current = resource_block.get("scopeSpans")
+    if isinstance(current, list):
+        return [item for item in current if isinstance(item, dict)]
+
+    legacy = resource_block.get("instrumentationLibrarySpans")
+    if isinstance(legacy, list):
+        return [item for item in legacy if isinstance(item, dict)]
+
+    return []
+
+
+def _scope_metadata(scope_block: dict[str, Any]) -> dict[str, str]:
+    scope = scope_block.get("scope")
+    if not isinstance(scope, dict):
+        scope = scope_block.get("instrumentationLibrary")
+    if not isinstance(scope, dict):
+        return {}
+
+    out: dict[str, str] = {}
+    if isinstance(scope.get("name"), str):
+        out["scope_name"] = scope["name"]
+    if isinstance(scope.get("version"), str):
+        out["scope_version"] = scope["version"]
+    return out
+
+
 def otlp_json_to_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
     resource_spans = payload.get("resourceSpans")
     if not isinstance(resource_spans, list):
@@ -110,18 +147,17 @@ def otlp_json_to_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(resource_block, dict):
             continue
         resource = resource_block.get("resource") or {}
-        resource_attrs = _attributes(resource.get("attributes"))
+        resource_attrs = (
+            _attributes(resource.get("attributes"))
+            if isinstance(resource, dict)
+            else {}
+        )
 
-        scope_spans = resource_block.get("scopeSpans")
-        if not isinstance(scope_spans, list):
-            continue
-
-        for scope_block in scope_spans:
-            if not isinstance(scope_block, dict):
-                continue
+        for scope_block in _scope_blocks(resource_block):
             spans = scope_block.get("spans")
             if not isinstance(spans, list):
                 continue
+            scope_meta = _scope_metadata(scope_block)
 
             for span in spans:
                 if not isinstance(span, dict):
@@ -149,26 +185,28 @@ def otlp_json_to_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
                 trace_id = span.get("traceId")
                 name = span.get("name")
+                kind_override = span_attrs.get("agent.replay.kind")
                 kind = (
-                    span_attrs.get("agent.replay.kind")
-                    if isinstance(span_attrs.get("agent.replay.kind"), str)
+                    kind_override
+                    if isinstance(kind_override, str) and kind_override
                     else name
                 )
                 if not isinstance(kind, str) or not kind:
                     kind = "otel.span"
 
-                evidence = {
+                evidence: dict[str, Any] = {
                     "source": "opentelemetry",
                     "trace_id": trace_id,
                     "span_id": span_id,
                 }
+                evidence.update(scope_meta)
 
-                scope = scope_block.get("scope")
-                if isinstance(scope, dict):
-                    if isinstance(scope.get("name"), str):
-                        evidence["scope_name"] = scope["name"]
-                    if isinstance(scope.get("version"), str):
-                        evidence["scope_version"] = scope["version"]
+                status = span.get("status")
+                if isinstance(status, dict):
+                    if "code" in status:
+                        evidence["otel_status_code"] = status["code"]
+                    if isinstance(status.get("message"), str):
+                        evidence["otel_status_message"] = status["message"]
 
                 events.append(
                     {
@@ -184,6 +222,9 @@ def otlp_json_to_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
                         "evidence": evidence,
                     }
                 )
+
+    if not events:
+        raise OpenTelemetryFormatError("OTLP JSON contained no spans")
 
     return events
 
