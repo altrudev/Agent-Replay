@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-replay.dev/schemas/incident-v2.schema.json",
+  "title": "Agent Replay Incident v2",
+  "type": "object",
+  "required": [
+    "schema",
+    "input_sha256",
+    "event_count",
+    "first_provable_divergence",
+    "divergences",
+    "causal_chain",
+    "attribution",
+    "confidence",
+    "reproducibility"
+  ],
+  "properties": {
+    "schema": {"const": "agent-replay.incident.v2"},
+    "input_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "event_count": {"type": "integer", "minimum": 0},
+    "first_provable_divergence": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/divergence"}
+      ]
+    },
+    "divergences": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/divergence"}
+    },
+    "causal_chain": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/chainEvent"}
+    },
+    "attribution": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/attribution"}
+    },
+    "confidence": {
+      "enum": ["NONE", "MEDIUM", "HIGH"]
+    },
+    "reproducibility": {
+      "enum": ["CONFIRMED", "NO_DIVERGENCE_FOUND"]
+    }
+  },
+  "$defs": {
+    "mismatch": {
+      "type": "object",
+      "required": ["field", "expected", "observed"],
+      "properties": {
+        "field": {"type": "string"},
+        "expected": {},
+        "observed": {}
+      }
+    },
+    "divergence": {
+      "type": "object",
+      "required": [
+        "event_id",
+        "timestamp",
+        "actor",
+        "kind",
+        "parent_ids",
+        "mismatches"
+      ],
+      "properties": {
+        "event_id": {"type": "string"},
+        "timestamp": {"type": "string"},
+        "actor": {"type": "string"},
+        "kind": {"type": "string"},
+        "parent_ids": {"type": "array", "items": {"type": "string"}},
+        "source_line": {"type": ["integer", "null"]},
+        "evidence": {"type": "object"},
+        "mismatches": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/mismatch"}
+        }
+      }
+    },
+    "chainEvent": {
+      "type": "object",
+      "required": [
+        "event_id",
+        "timestamp",
+        "kind",
+        "actor",
+        "relationship",
+        "direct_parent_ids",
+        "divergent_ancestor_ids"
+      ],
+      "properties": {
+        "event_id": {"type": "string"},
+        "timestamp": {"type": "string"},
+        "kind": {"type": "string"},
+        "actor": {"type": "string"},
+        "relationship": {
+          "enum": [
+            "ROOT_DIVERGENCE",
+            "EXPLICITLY_DOWNSTREAM",
+            "TEMPORALLY_DOWNSTREAM"
+          ]
+        },
+        "direct_parent_ids": {"type": "array", "items": {"type": "string"}},
+        "divergent_ancestor_ids": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "attribution": {
+      "type": "object",
+      "required": ["actor", "role", "event_ids", "basis"],
+      "properties": {
+        "actor": {"type": "string"},
+        "role": {"enum": ["PRIMARY", "CONTRIBUTING", "DOWNSTREAM"]},
+        "event_ids": {"type": "array", "items": {"type": "string"}},
+        "basis": {"type": "string"}
+      }
+    }
+  }
+}
