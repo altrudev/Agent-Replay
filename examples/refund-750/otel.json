@@ -53,7 +53,11 @@
                 {"key":"agent.replay.expected.approved","value":{"boolValue":true}},
                 {"key":"agent.replay.observed.approved","value":{"boolValue":false}},
                 {"key":"agent.replay.expected.executed","value":{"boolValue":true}},
-                {"key":"agent.replay.observed.executed","value":{"boolValue":true}}
+                {"key":"agent.replay.observed.executed","value":{"boolValue":true}},
+                {"key":"agent.replay.radial.time_gap","value":{"doubleValue":0.2}},
+                {"key":"agent.replay.radial.independently_mutable","value":{"boolValue":true}},
+                {"key":"agent.replay.radial.shared_atomic_boundary","value":{"boolValue":false}},
+                {"key":"agent.replay.radial.context_bound","value":{"boolValue":true}}
               ]
             },
             {
@@ -65,7 +69,13 @@
               "attributes":[
                 {"key":"agent.name","value":{"stringValue":"payment-api"}},
                 {"key":"agent.replay.expected.refund_amount","value":{"intValue":"200"}},
-                {"key":"agent.replay.observed.refund_amount","value":{"intValue":"750"}}
+                {"key":"agent.replay.observed.refund_amount","value":{"intValue":"750"}},
+                {"key":"agent.replay.radial.time_gap","value":{"doubleValue":0.2}},
+                {"key":"agent.replay.radial.independently_mutable","value":{"boolValue":true}},
+                {"key":"agent.replay.radial.shared_atomic_boundary","value":{"boolValue":false}},
+                {"key":"agent.replay.radial.context_bound","value":{"boolValue":true}},
+                {"key":"agent.replay.radial.consequence","value":{"doubleValue":0.9}},
+                {"key":"agent.replay.radial.reversible","value":{"boolValue":false}}
               ]
             }
           ]
