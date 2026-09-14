@@ -13,6 +13,7 @@ dependencies = ["agent-replay>=0.2.0"]
 
 [project.scripts]
 agent-replay-ddc = "agent_replay_ddc.cli:main"
+agent-replay-ddc-radial = "agent_replay_ddc.radial_runner:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
