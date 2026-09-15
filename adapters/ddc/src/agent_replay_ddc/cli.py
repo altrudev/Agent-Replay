@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import tempfile
 from pathlib import Path
@@ -12,14 +13,25 @@ from .radial_runner import RadialAdapterError, analyze_incident
 from .render import render_radial
 
 
+def _sha256(path: str | Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
 def _reconstruct(input_path: str, input_format: str):
     if input_format == "jsonl":
-        return reconstruct(input_path)
+        incident = reconstruct(input_path)
+        incident["input_format"] = "canonical-jsonl"
+        return incident
 
+    original_sha256 = _sha256(input_path)
     with tempfile.TemporaryDirectory(prefix="agent-replay-ddc-") as tmp:
         canonical = Path(tmp) / "canonical.jsonl"
         write_canonical_jsonl(input_path, canonical)
-        return reconstruct(str(canonical))
+        incident = reconstruct(str(canonical))
+
+    incident["input_sha256"] = original_sha256
+    incident["input_format"] = "otlp-json"
+    return incident
 
 
 def main():
