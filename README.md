@@ -34,16 +34,16 @@ agent-replay reconstruct \
   --trace-key issuer-public.pem
 ```
 
-Machine-readable output includes a `trace_evidence` object:
+Machine-readable output includes a `trace_evidence` object bound to the exact TRACE record bytes and caller-supplied trusted key by SHA-256:
 
 ```text
-TRACE record
+TRACE record + SHA-256
     ↓
 schema / profile validation
     ↓
 signature + freshness verification
     ↓
-caller-supplied trusted issuer key
+caller-supplied trusted issuer key + SHA-256
     ↓
 Agent Replay incident evidence summary
 ```
@@ -176,7 +176,8 @@ AGENT REPLAY INCIDENT
 
 Events: 5
 Expectation coverage: COMPLETE (5/5)
-Reproducibility: CONFIRMED
+Reconstruction: DIVERGENCE_RECONSTRUCTED
+Reproducibility: NOT_TESTED
 Confidence: HIGH
 
 TIMELINE
@@ -198,7 +199,7 @@ observed=v17
 
 Agent Replay fails closed on invalid or timezone-less timestamps, duplicate event IDs, unknown or duplicate parents, self-parenting, future-parent edges, and causal cycles.
 
-Timestamps are normalized to UTC before ordering.
+Timestamps are normalized to UTC before ordering. Equal-time events are topologically ordered so an evidenced parent cannot be placed after its child. Events without expected-state evidence are labeled `UNASSESSED`, not `VALID`.
 
 Each reconstruction contains:
 
@@ -207,7 +208,7 @@ input_sha256
 canonical_sha256
 ```
 
-The first hashes the exact supplied evidence bytes. The second hashes the normalized canonical representation.
+The first hashes the exact evidence bytes supplied by the caller, including the original OTLP JSON when `--format otel` is used. The second hashes the normalized canonical representation.
 
 ## Causality
 
@@ -257,6 +258,7 @@ That prints the normal Agent Replay incident followed by a concise DDC Radial ap
 ```text
 DDC RADIAL REVIEW
 Engine: ddc-radial-frequency/1.0
+Engine SHA-256: ...
 Candidates: ...
 
 1. Unsafe retry / duplicate effect
