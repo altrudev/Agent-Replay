@@ -17,6 +17,8 @@ def test_first_divergence():
     assert first["event_id"] == "evt_019"
     assert first["mismatches"][0]["observed"] == "v17"
     assert first["mismatches"][0]["expected"] == "v19"
+    assert report["reproducibility"] == "NOT_TESTED"
+    assert report["reconstruction_status"] == "DIVERGENCE_RECONSTRUCTED"
 
 
 def test_full_timeline_preserves_valid_and_divergent_events():
@@ -31,6 +33,18 @@ def test_full_timeline_preserves_valid_and_divergent_events():
     ]
     assert report["timeline"][0]["status"] == "VALID"
     assert report["timeline"][1]["status"] == "DIVERGENT"
+
+
+def test_unassessed_event_is_not_labeled_valid(tmp_path: Path):
+    source = tmp_path / "events.jsonl"
+    source.write_text(
+        '{"event_id":"a","timestamp":"2026-01-01T00:00:00Z","actor":"a","kind":"x"}\n',
+        encoding="utf-8",
+    )
+    report = reconstruct(str(source))
+    assert report["timeline"][0]["status"] == "UNASSESSED"
+    assert report["reconstruction_status"] == "NO_DIVERGENCE_ESTABLISHED"
+    assert report["reproducibility"] == "NOT_TESTED"
 
 
 def test_explicit_causal_chain_and_attribution():
@@ -87,6 +101,23 @@ def test_timestamps_are_normalized_before_ordering(tmp_path: Path):
     assert report["timeline"][0]["timestamp"].endswith("Z")
 
 
+def test_equal_timestamp_parent_precedes_child(tmp_path: Path):
+    source = tmp_path / "events.jsonl"
+    source.write_text(
+        '{"event_id":"z-parent","timestamp":"2026-01-01T00:00:00Z","actor":"a",'
+        '"kind":"parent","expected":{"x":1},"observed":{"x":2}}\n'
+        '{"event_id":"a-child","timestamp":"2026-01-01T00:00:00Z","actor":"a",'
+        '"kind":"child","parent_ids":["z-parent"],"expected":{"y":1},"observed":{"y":2}}\n',
+        encoding="utf-8",
+    )
+    report = reconstruct(str(source))
+    assert [item["event_id"] for item in report["timeline"]] == [
+        "z-parent",
+        "a-child",
+    ]
+    assert report["first_provable_divergence"]["event_id"] == "z-parent"
+
+
 def test_unknown_parent_fails_closed(tmp_path: Path):
     source = tmp_path / "events.jsonl"
     source.write_text(
@@ -128,6 +159,8 @@ def test_text_report_contains_core_findings():
 
     assert "TIMELINE" in text
     assert "Canonical SHA-256:" in text
+    assert "Reconstruction: DIVERGENCE_RECONSTRUCTED" in text
+    assert "Reproducibility: NOT_TESTED" in text
     assert "FIRST PROVABLE DIVERGENCE" in text
     assert "policy_version: expected=v19 observed=v17" in text
     assert "refund-agent: PRIMARY" in text
