@@ -21,23 +21,6 @@ def _kind_dimensions(kind: str) -> set[str]:
     return dims
 
 
-def _relation(kind: str) -> str:
-    lowered = kind.lower()
-    if "approval" in lowered or "auth" in lowered:
-        return "authorizes"
-    if "read" in lowered:
-        return "reads"
-    if "retry" in lowered:
-        return "retries"
-    if "recover" in lowered:
-        return "recovers"
-    if any(token in lowered for token in ("payment", "refund", "commit")):
-        return "commits"
-    if "write" in lowered or "tool" in lowered:
-        return "writes"
-    return "depends_on"
-
-
 def _radial(event: dict[str, Any]) -> dict[str, Any]:
     evidence = event.get("evidence")
     if not isinstance(evidence, dict):
@@ -97,8 +80,6 @@ def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
                 "id": event_id,
                 "dimensions": sorted(_kind_dimensions(kind)),
                 "mutable": _bool_hint(radial, "mutable", False),
-                # Actor identity is not the same thing as authority identity.
-                # Authority distance is only evidenced by an explicit hint.
                 "authority": _string_hint(radial, "authority", ""),
                 "representation": representation,
                 "consequence": _float_hint(radial, "consequence", 0.0),
@@ -118,7 +99,8 @@ def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
             if src not in by_id:
                 raise ValueError(f"unknown parent event: {src}->{dst}")
 
-            relation = _relation(str(event.get("kind", "")))
+            # Semantic edge relations are evidence, not a naming heuristic.
+            relation = _string_hint(child_radial, "relation", "depends_on")
 
             edges.append(
                 {
