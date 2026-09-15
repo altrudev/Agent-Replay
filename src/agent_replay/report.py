@@ -65,8 +65,7 @@ def render_text(report: dict[str, Any]) -> str:
         if coverage["status"] in {"NO_EXPECTATIONS", "PARTIAL"}:
             lines.append(coverage["claim"])
         _append_trace(lines, report)
-        return "
-".join(lines)
+        return "\\n".join(lines)
 
     lines.append("FIRST PROVABLE DIVERGENCE")
     lines.append(f"{first['timestamp']}  {first['event_id']}  {first['kind']}")
