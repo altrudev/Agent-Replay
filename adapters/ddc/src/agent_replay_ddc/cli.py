@@ -17,8 +17,14 @@ def _sha256(path: str | Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def _reconstruct(input_path: str, input_format: str):
+def _reconstruct(
+    input_path: str,
+    input_format: str,
+    trace_id: str | None = None,
+):
     if input_format == "jsonl":
+        if trace_id:
+            raise ValueError("trace_id is only valid for OTLP input")
         incident = reconstruct(input_path)
         incident["input_format"] = "canonical-jsonl"
         return incident
@@ -26,12 +32,31 @@ def _reconstruct(input_path: str, input_format: str):
     original_sha256 = _sha256(input_path)
     with tempfile.TemporaryDirectory(prefix="agent-replay-ddc-") as tmp:
         canonical = Path(tmp) / "canonical.jsonl"
-        write_canonical_jsonl(input_path, canonical)
+        write_canonical_jsonl(
+            input_path,
+            canonical,
+            trace_id=trace_id,
+        )
         incident = reconstruct(str(canonical))
 
     incident["input_sha256"] = original_sha256
     incident["input_format"] = "otlp-json"
+    if trace_id:
+        incident["selected_trace_id"] = trace_id
     return incident
+
+
+def _add_input_args(target):
+    target.add_argument("input")
+    target.add_argument(
+        "--format",
+        choices=("jsonl", "otel"),
+        default="jsonl",
+    )
+    target.add_argument(
+        "--trace-id",
+        help="trace ID to select when an OTLP document contains multiple traces",
+    )
 
 
 def main():
@@ -42,23 +67,13 @@ def main():
         "verify",
         help="run the generic configured DDC command over an Agent Replay incident",
     )
-    verify_parser.add_argument("input")
-    verify_parser.add_argument(
-        "--format",
-        choices=("jsonl", "otel"),
-        default="jsonl",
-    )
+    _add_input_args(verify_parser)
 
     review_parser = sub.add_parser(
         "review",
         help="reconstruct an incident and run DDC Radial analysis",
     )
-    review_parser.add_argument("input")
-    review_parser.add_argument(
-        "--format",
-        choices=("jsonl", "otel"),
-        default="jsonl",
-    )
+    _add_input_args(review_parser)
     review_parser.add_argument(
         "--json",
         action="store_true",
@@ -73,7 +88,10 @@ def main():
 
     args = parser.parse_args()
 
-    incident = _reconstruct(args.input, args.format)
+    try:
+        incident = _reconstruct(args.input, args.format, args.trace_id)
+    except ValueError as exc:
+        parser.error(str(exc))
 
     if args.command == "verify":
         try:
