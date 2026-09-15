@@ -27,6 +27,7 @@
               "name":"policy.read",
               "startTimeUnixNano":"1789416265000000000",
               "attributes":[
+                {"key":"agent.replay.causal_parent","value":{"boolValue":true}},
                 {"key":"agent.replay.expected.policy_version","value":{"stringValue":"v19"}},
                 {"key":"agent.replay.observed.policy_version","value":{"stringValue":"v17"}}
               ]
@@ -38,6 +39,7 @@
               "name":"refund.generated",
               "startTimeUnixNano":"1789416267000000000",
               "attributes":[
+                {"key":"agent.replay.causal_parent","value":{"boolValue":true}},
                 {"key":"agent.replay.expected.refund_amount","value":{"intValue":"200"}},
                 {"key":"agent.replay.observed.refund_amount","value":{"intValue":"750"}},
                 {"key":"agent.replay.radial.relation","value":{"stringValue":"depends_on"}}
@@ -51,6 +53,7 @@
               "startTimeUnixNano":"1789416268000000000",
               "attributes":[
                 {"key":"agent.name","value":{"stringValue":"approval-gate"}},
+                {"key":"agent.replay.causal_parent","value":{"boolValue":true}},
                 {"key":"agent.replay.expected.approved","value":{"boolValue":true}},
                 {"key":"agent.replay.observed.approved","value":{"boolValue":false}},
                 {"key":"agent.replay.expected.executed","value":{"boolValue":true}},
@@ -70,6 +73,7 @@
               "startTimeUnixNano":"1789416269000000000",
               "attributes":[
                 {"key":"agent.name","value":{"stringValue":"payment-api"}},
+                {"key":"agent.replay.causal_parent","value":{"boolValue":true}},
                 {"key":"agent.replay.expected.refund_amount","value":{"intValue":"200"}},
                 {"key":"agent.replay.observed.refund_amount","value":{"intValue":"750"}},
                 {"key":"agent.replay.radial.relation","value":{"stringValue":"commits"}},
