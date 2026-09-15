@@ -83,4 +83,9 @@ def render_radial(
     lines.append(
         "Note: DDC Radial findings are non-authoritative CANDIDATE hypotheses."
     )
+    lines.append(
+        "Structural features may include caller-supplied evidence.radial / "
+        "agent.replay.radial.* assertions; Agent Replay does not independently "
+        "authenticate those hints."
+    )
     return "\n".join(lines)
