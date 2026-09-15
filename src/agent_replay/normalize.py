@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import heapq
 import json
 from pathlib import Path
 from typing import Any
@@ -62,8 +63,10 @@ def _canonical_timestamp(value: str, line_no: int) -> str:
     return parsed.isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
-def _validate_graph(events: list[CanonicalEvent]) -> None:
+def _validate_and_order(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
     by_id = {event.event_id: event for event in events}
+    children: dict[str, list[str]] = {event.event_id: [] for event in events}
+    indegree: dict[str, int] = {event.event_id: 0 for event in events}
 
     for event in events:
         child_time = _parse_timestamp(event.timestamp, event.source_line or 0)
@@ -83,25 +86,47 @@ def _validate_graph(events: list[CanonicalEvent]) -> None:
                     f"line {event.source_line}: parent {parent_id!r} occurs after child "
                     f"{event.event_id!r}"
                 )
+            children[parent_id].append(event.event_id)
+            indegree[event.event_id] += 1
 
-    visiting: set[str] = set()
-    visited: set[str] = set()
-
-    def visit(event_id: str) -> None:
-        if event_id in visited:
-            return
-        if event_id in visiting:
-            raise EvidenceFormatError(
-                f"causal parent cycle detected at event {event_id!r}"
+    ready: list[tuple[datetime, str]] = []
+    for event in events:
+        if indegree[event.event_id] == 0:
+            heapq.heappush(
+                ready,
+                (
+                    _parse_timestamp(event.timestamp, event.source_line or 0),
+                    event.event_id,
+                ),
             )
-        visiting.add(event_id)
-        for parent_id in by_id[event_id].parent_ids:
-            visit(parent_id)
-        visiting.remove(event_id)
-        visited.add(event_id)
 
-    for event_id in by_id:
-        visit(event_id)
+    ordered: list[CanonicalEvent] = []
+    while ready:
+        _, event_id = heapq.heappop(ready)
+        event = by_id[event_id]
+        ordered.append(event)
+
+        for child_id in children[event_id]:
+            indegree[child_id] -= 1
+            if indegree[child_id] == 0:
+                child = by_id[child_id]
+                heapq.heappush(
+                    ready,
+                    (
+                        _parse_timestamp(child.timestamp, child.source_line or 0),
+                        child.event_id,
+                    ),
+                )
+
+    if len(ordered) != len(events):
+        cyclic = sorted(
+            event_id for event_id, degree in indegree.items() if degree > 0
+        )
+        raise EvidenceFormatError(
+            "causal parent cycle detected involving: " + ", ".join(cyclic[:10])
+        )
+
+    return ordered
 
 
 def normalize_jsonl(path: str | Path) -> list[CanonicalEvent]:
@@ -160,11 +185,4 @@ def normalize_jsonl(path: str | Path) -> list[CanonicalEvent]:
                 )
             )
 
-    _validate_graph(events)
-    return sorted(
-        events,
-        key=lambda event: (
-            _parse_timestamp(event.timestamp, event.source_line or 0),
-            event.event_id,
-        ),
-    )
+    return _validate_and_order(events)
