@@ -8,6 +8,11 @@ Agent Replay answers a narrow forensic question:
 
 It is **not** an observability platform, agent runtime, policy engine, or monitoring service.
 
+Current hardening release: **v0.4.1**.
+
+- See [CHANGELOG.md](CHANGELOG.md) for release history.
+- See [SECURITY.md](SECURITY.md) before processing sensitive or untrusted evidence.
+
 ## v0.4 — AgenTrust TRACE evidence
 
 Agent Replay can now verify a standalone TRACE v0.2 Trust Record against a caller-supplied trusted issuer key and attach the verified record summary to an incident reconstruction.
@@ -346,12 +351,17 @@ schemas/incident-v2.schema.json
 
 ## Development
 
-Standalone core:
+Standalone core and schema-conformance tests:
+
+```bash
+python -m pip install -e '.[dev]'
+pytest -q
+```
+
+Normal runtime use still requires no third-party core dependencies:
 
 ```bash
 python -m pip install -e .
-python -m pip install pytest
-pytest -q
 ```
 
 Optional DDC adapter:
@@ -360,6 +370,8 @@ Optional DDC adapter:
 python -m pip install -e ./adapters/ddc
 pytest -q adapters/ddc/tests
 ```
+
+The DDC checkout referenced by `DDC_RADIAL_ROOT` is executable local code and must be treated as trusted.
 
 No hosted infrastructure or GitHub Actions are required.
 
