@@ -2,6 +2,17 @@
 
 All notable changes to Agent Replay are documented here.
 
+## 0.4.2
+
+Compatibility-only update for the audited TRACE v0.9.1 verifier line.
+
+### Changed
+
+- Optional TRACE dependency updated to `agentrust-trace>=0.9.1,<0.10.0`.
+- Agent Replay TRACE integration continues to use the stable `validate_json()` + `verify_record()` path with a caller-supplied trusted key.
+- Core reconstruction, causality, attribution, OTLP handling, incident schema, and DDC Radial behavior are unchanged from v0.4.1.
+- Core and optional DDC adapter package versions aligned at 0.4.2.
+
 ## 0.4.1
 
 Release-hardening pass following the full repository DDC Radial audit.
