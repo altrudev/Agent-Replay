@@ -141,7 +141,21 @@ gen_ai.agent.name
 service.name
 ```
 
-Original OTLP provenance is retained, including trace ID, span ID, parent relationship, instrumentation scope, and OTel status.
+Original OTLP provenance is retained, including trace ID, span ID, parent-span relationship, instrumentation scope, exact `startTimeUnixNano`, and OTel status.
+
+An OpenTelemetry `parentSpanId` is ancestry/provenance, not automatically a causal claim. Agent Replay only maps it into canonical causal `parent_ids` when the child span explicitly carries:
+
+```text
+agent.replay.causal_parent = true
+```
+
+If an OTLP document contains multiple trace IDs, reconstruction fails closed unless one is selected:
+
+```bash
+agent-replay reconstruct traces.json --format otel --trace-id <trace-id>
+```
+
+This prevents unrelated traces from being merged into one incident.
 
 ### Evidence sufficiency
 
@@ -159,6 +173,8 @@ When normative evidence is absent:
 No provable divergence found.
 No divergence can be established for events lacking expected-state evidence.
 ```
+
+Expected-state values are caller-supplied assertions unless separately bound to authenticated policy evidence. The machine-readable incident therefore includes `expectation_scope`. Likewise, `confidence` is structural confidence only; it does not independently establish truth, identity, or policy provenance, and this limit is stated in `confidence_scope`.
 
 ## Example incident
 
@@ -208,7 +224,7 @@ input_sha256
 canonical_sha256
 ```
 
-The first hashes the exact evidence bytes supplied by the caller, including the original OTLP JSON when `--format otel` is used. The second hashes the normalized canonical representation.
+The first hashes the exact evidence bytes supplied by the caller, including the original OTLP JSON when `--format otel` is used. The second hashes the normalized canonical representation. When verified TRACE evidence is attached, the TRACE record and trusted key are individually hashed and a supplementary evidence-bundle hash binds those fingerprints to the incident.
 
 ## Causality
 
@@ -220,7 +236,7 @@ EXPLICITLY_DOWNSTREAM
 TEMPORALLY_DOWNSTREAM
 ```
 
-A later event is not described as causal merely because it happened later.
+A later event is not described as causal merely because it happened later. OpenTelemetry span ancestry is also not promoted to causality unless explicitly asserted by `agent.replay.causal_parent=true`.
 
 ## Attribution
 
