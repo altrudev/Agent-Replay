@@ -79,3 +79,35 @@ def test_runtime_claim_is_refused(tmp_path):
 
     with pytest.raises(TraceEvidenceError, match="RuntimeClaim"):
         verify_trace_record(record_path, key_path)
+
+
+def test_trace_summary_records_verifier_package_version(tmp_path, monkeypatch):
+    record_path = tmp_path / "record.json"
+    key_path = tmp_path / "issuer.jwk"
+    record_path.write_text(json.dumps(_record()), encoding="utf-8")
+    key_path.write_text(
+        json.dumps({"kty": "OKP", "crv": "Ed25519", "x": "trusted"}),
+        encoding="utf-8",
+    )
+
+    def validate_json(record):
+        return None
+
+    def verify_record(record, public_key_or_jwk):
+        return None
+
+    fake = types.ModuleType("agentrust_trace")
+    fake.validate_json = validate_json
+    fake.verify_record = verify_record
+    monkeypatch.setitem(sys.modules, "agentrust_trace", fake)
+    monkeypatch.setattr(
+        "agent_replay.trace.importlib.metadata.version",
+        lambda name: "0.9.1" if name == "agentrust-trace" else "unknown",
+    )
+
+    summary = verify_trace_record(record_path, key_path)
+
+    assert summary["verifier_package"] == {
+        "name": "agentrust-trace",
+        "version": "0.9.1",
+    }
