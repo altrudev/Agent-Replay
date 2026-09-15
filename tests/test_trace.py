@@ -62,6 +62,9 @@ def test_trace_uses_caller_supplied_key(tmp_path, monkeypatch):
     assert summary["verification"]["status"] == "VERIFIED"
     assert summary["verification"]["trusted_key_source"] == "caller-supplied"
     assert summary["subject"] == "spiffe://example.test/agent/refund"
+    assert len(summary["record_sha256"]) == 64
+    assert len(summary["trusted_key_sha256"]) == 64
+    assert summary["record_sha256"] != summary["trusted_key_sha256"]
     assert "does not independently verify hardware attestation" in summary["verification"]["scope"]
 
 
