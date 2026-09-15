@@ -26,6 +26,7 @@ def test_otlp_refund_fixture_normalizes_to_canonical_events(tmp_path: Path):
     assert events[4]["actor"] == "payment-api"
     assert events[4]["evidence"]["trace_id"] == "trace-refund-750"
     assert events[4]["evidence"]["radial"]["relation"] == "commits"
+    assert events[4]["evidence"]["otel_start_time_unix_nano"] == "1789416269000000000"
 
     target = tmp_path / "canonical.jsonl"
     write_canonical_jsonl("examples/refund-750/otel.json", target)
@@ -39,6 +40,69 @@ def test_otlp_refund_fixture_normalizes_to_canonical_events(tmp_path: Path):
     )
     assert report["confidence"] == "HIGH"
     assert report["reproducibility"] == "NOT_TESTED"
+
+
+def test_parent_span_is_not_causal_without_explicit_hint():
+    payload = {
+        "resourceSpans": [{
+            "scopeSpans": [{
+                "spans": [
+                    {
+                        "traceId": "t",
+                        "spanId": "p",
+                        "name": "parent",
+                        "startTimeUnixNano": "1704067200000000000"
+                    },
+                    {
+                        "traceId": "t",
+                        "spanId": "c",
+                        "parentSpanId": "p",
+                        "name": "child",
+                        "startTimeUnixNano": "1704067200000001000"
+                    }
+                ]
+            }]
+        }]
+    }
+
+    events = otlp_json_to_events(payload)
+    child = next(item for item in events if item["event_id"].endswith(":c"))
+
+    assert child["parent_ids"] == []
+    assert child["evidence"]["otel_parent_event_id"] == "span:t:p"
+
+
+def test_explicit_causal_parent_is_preserved():
+    payload = {
+        "resourceSpans": [{
+            "scopeSpans": [{
+                "spans": [
+                    {
+                        "traceId": "t",
+                        "spanId": "p",
+                        "name": "parent",
+                        "startTimeUnixNano": "1704067200000000000"
+                    },
+                    {
+                        "traceId": "t",
+                        "spanId": "c",
+                        "parentSpanId": "p",
+                        "name": "child",
+                        "startTimeUnixNano": "1704067200000001000",
+                        "attributes": [{
+                            "key": "agent.replay.causal_parent",
+                            "value": {"boolValue": True}
+                        }]
+                    }
+                ]
+            }]
+        }]
+    }
+
+    events = otlp_json_to_events(payload)
+    child = next(item for item in events if item["event_id"].endswith(":c"))
+
+    assert child["parent_ids"] == ["span:t:p"]
 
 
 def test_generic_otel_without_expectations_does_not_invent_failure(tmp_path: Path):
@@ -96,7 +160,7 @@ def test_partial_trace_preserves_external_parent_without_false_edge():
     assert events[0]["evidence"]["external_parent_span_id"] == "not-exported"
 
 
-def test_span_identity_is_scoped_by_trace():
+def test_multiple_traces_require_explicit_selection():
     payload = {
         "resourceSpans": [{
             "scopeSpans": [{
@@ -118,8 +182,53 @@ def test_span_identity_is_scoped_by_trace():
         }]
     }
 
+    with pytest.raises(OpenTelemetryFormatError, match="multiple traces"):
+        otlp_json_to_events(payload)
+
+    selected = otlp_json_to_events(payload, trace_id="trace-b")
+    assert len(selected) == 1
+    assert selected[0]["event_id"] == "span:trace-b:same"
+
+
+def test_nanosecond_ordering_survives_microsecond_display_precision(tmp_path: Path):
+    payload = {
+        "resourceSpans": [{
+            "scopeSpans": [{
+                "spans": [
+                    {
+                        "traceId": "t",
+                        "spanId": "later",
+                        "name": "later",
+                        "startTimeUnixNano": "1704067200000000900",
+                        "attributes": [
+                            {"key": "agent.replay.expected.x", "value": {"intValue": "1"}},
+                            {"key": "agent.replay.observed.x", "value": {"intValue": "2"}}
+                        ]
+                    },
+                    {
+                        "traceId": "t",
+                        "spanId": "earlier",
+                        "name": "earlier",
+                        "startTimeUnixNano": "1704067200000000100",
+                        "attributes": [
+                            {"key": "agent.replay.expected.x", "value": {"intValue": "1"}},
+                            {"key": "agent.replay.observed.x", "value": {"intValue": "2"}}
+                        ]
+                    }
+                ]
+            }]
+        }]
+    }
+
     events = otlp_json_to_events(payload)
-    assert events[0]["event_id"] != events[1]["event_id"]
+    target = tmp_path / "canonical.jsonl"
+    target.write_text(
+        "".join(json.dumps(event) + "\n" for event in events),
+        encoding="utf-8",
+    )
+    report = reconstruct(str(target))
+
+    assert report["first_provable_divergence"]["event_id"] == "span:t:earlier"
 
 
 def test_legacy_instrumentation_library_spans_are_supported():
