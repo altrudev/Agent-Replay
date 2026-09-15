@@ -92,6 +92,10 @@ def reconstruct(path: str) -> dict[str, Any]:
         "canonical_sha256": _canonical_digest(events),
         "event_count": len(events),
         "expectation_coverage": _expectation_coverage(events),
+        "expectation_scope": (
+            "CALLER_SUPPLIED_ASSERTIONS: expected-state values are supplied by "
+            "the input evidence and are not independently authenticated by Agent Replay."
+        ),
         "timeline": _timeline(events),
         "first_provable_divergence": divergences[0] if divergences else None,
         "divergences": divergences,
@@ -102,6 +106,10 @@ def reconstruct(path: str) -> dict[str, Any]:
             "and are not independently authenticated by Agent Replay."
         ),
         "confidence": confidence(divergences, chain),
+        "confidence_scope": (
+            "STRUCTURAL_ONLY: confidence reflects mismatch and graph structure, "
+            "not independent truth, identity, or policy provenance."
+        ),
         "reproducibility": "NOT_TESTED",
         "reconstruction_status": (
             "DIVERGENCE_RECONSTRUCTED" if divergences else "NO_DIVERGENCE_ESTABLISHED"
