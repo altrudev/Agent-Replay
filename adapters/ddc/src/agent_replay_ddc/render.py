@@ -36,6 +36,12 @@ def render_radial(
 
     lines.append("DDC RADIAL REVIEW")
     lines.append(f"Engine: {radial.get('engine', 'unknown')}")
+    source = radial.get("engine_source")
+    if isinstance(source, dict):
+        if source.get("sha256"):
+            lines.append(f"Engine SHA-256: {source['sha256']}")
+        if source.get("path"):
+            lines.append(f"Engine path: {source['path']}")
     lines.append(
         f"Candidates: {len(hypotheses)} "
         f"| Nodes: {radial.get('examined_nodes', 0)} "
@@ -55,7 +61,11 @@ def render_radial(
         score = item.get("score", 0)
         lines.append(f"{index}. {item.get('title', item.get('prior_id', 'candidate'))}")
         lines.append(f"   Prior: {item.get('prior_id', 'unknown')}")
-        lines.append(f"   Score: {score:.3f}" if isinstance(score, (int, float)) else f"   Score: {score}")
+        lines.append(
+            f"   Score: {score:.3f}"
+            if isinstance(score, (int, float))
+            else f"   Score: {score}"
+        )
         labels = _subject_labels(incident, item.get("subjects") or [])
         lines.append("   Subjects:")
         for label in labels:
