@@ -13,13 +13,18 @@ def _timeline(events):
     out = []
     for event in events:
         mm = mismatches(event)
+        if not event.expected:
+            status = "UNASSESSED"
+        else:
+            status = "DIVERGENT" if mm else "VALID"
+
         out.append(
             {
                 "event_id": event.event_id,
                 "timestamp": event.timestamp,
                 "actor": event.actor,
                 "kind": event.kind,
-                "status": "DIVERGENT" if mm else "VALID",
+                "status": status,
                 "parent_ids": list(event.parent_ids),
                 "source_line": event.source_line,
                 "evidence": event.evidence,
@@ -97,5 +102,8 @@ def reconstruct(path: str) -> dict[str, Any]:
             "and are not independently authenticated by Agent Replay."
         ),
         "confidence": confidence(divergences, chain),
-        "reproducibility": "CONFIRMED" if divergences else "NO_DIVERGENCE_FOUND",
+        "reproducibility": "NOT_TESTED",
+        "reconstruction_status": (
+            "DIVERGENCE_RECONSTRUCTED" if divergences else "NO_DIVERGENCE_ESTABLISHED"
+        ),
     }
