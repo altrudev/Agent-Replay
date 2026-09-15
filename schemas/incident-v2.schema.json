@@ -16,12 +16,14 @@
     "attribution",
     "attribution_scope",
     "confidence",
-    "reproducibility"
+    "reproducibility",
+    "reconstruction_status"
   ],
   "properties": {
     "schema": {"const": "agent-replay.incident.v2"},
     "input_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "canonical_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "input_format": {"type": "string"},
     "event_count": {"type": "integer", "minimum": 0},
     "expectation_coverage": {
       "$ref": "#/$defs/expectationCoverage"
@@ -53,7 +55,10 @@
       "enum": ["NONE", "MEDIUM", "HIGH"]
     },
     "reproducibility": {
-      "enum": ["CONFIRMED", "NO_DIVERGENCE_FOUND"]
+      "enum": ["NOT_TESTED"]
+    },
+    "reconstruction_status": {
+      "enum": ["DIVERGENCE_RECONSTRUCTED", "NO_DIVERGENCE_ESTABLISHED"]
     }
   },
   "$defs": {
@@ -101,7 +106,7 @@
         "timestamp": {"type": "string", "format": "date-time"},
         "actor": {"type": "string"},
         "kind": {"type": "string"},
-        "status": {"enum": ["VALID", "DIVERGENT"]},
+        "status": {"enum": ["VALID", "DIVERGENT", "UNASSESSED"]},
         "parent_ids": {"type": "array", "items": {"type": "string"}},
         "source_line": {"type": ["integer", "null"]},
         "evidence": {"type": "object"},
