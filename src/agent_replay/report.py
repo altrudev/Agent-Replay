@@ -24,8 +24,15 @@ def _append_trace(lines: list[str], report: dict[str, Any]) -> None:
     lines.append(f"Subject: {trace.get('subject')}")
     lines.append(f"Model: {model.get('provider')}/{model.get('model_id')}")
     lines.append(f"Runtime: {runtime.get('platform')}")
+    verifier = trace.get("verifier_package")
+    if isinstance(verifier, dict):
+        lines.append(
+            f"Verifier: {verifier.get('name')}/{verifier.get('version')}"
+        )
     if trace.get("record_sha256"):
         lines.append(f"TRACE record SHA-256: {trace.get('record_sha256')}")
+    if trace.get("trusted_key_sha256"):
+        lines.append(f"Trusted key SHA-256: {trace.get('trusted_key_sha256')}")
     lines.append(f"Scope: {verification.get('scope', '')}")
 
 
@@ -39,6 +46,13 @@ def render_text(report: dict[str, Any]) -> str:
     lines.append(f"Canonical SHA-256: {report['canonical_sha256']}")
     if report.get("input_format"):
         lines.append(f"Input format: {report['input_format']}")
+    if report.get("selected_trace_id"):
+        lines.append(f"Selected trace: {report['selected_trace_id']}")
+    if report.get("supplementary_evidence_bundle_sha256"):
+        lines.append(
+            "Supplementary evidence bundle SHA-256: "
+            f"{report['supplementary_evidence_bundle_sha256']}"
+        )
     lines.append(f"Events: {report['event_count']}")
     lines.append(
         "Expectation coverage: "
@@ -65,7 +79,7 @@ def render_text(report: dict[str, Any]) -> str:
         if coverage["status"] in {"NO_EXPECTATIONS", "PARTIAL"}:
             lines.append(coverage["claim"])
         _append_trace(lines, report)
-        return "\\n".join(lines)
+        return "\n".join(lines)
 
     lines.append("FIRST PROVABLE DIVERGENCE")
     lines.append(f"{first['timestamp']}  {first['event_id']}  {first['kind']}")
@@ -104,5 +118,4 @@ def render_text(report: dict[str, Any]) -> str:
         )
 
     _append_trace(lines, report)
-    return "
-".join(lines)
+    return "\n".join(lines)
