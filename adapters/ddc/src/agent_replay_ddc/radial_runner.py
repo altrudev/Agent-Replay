@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.util
 import json
 import os
 from pathlib import Path
 import sys
+import types
 from typing import Any
 
 from .radial_mapping import incident_to_radial_spec
@@ -32,20 +32,19 @@ def _load_radial_module():
             f"DDC Radial module not found: {module_path}"
         )
 
-    source_sha256 = hashlib.sha256(module_path.read_bytes()).hexdigest()
+    # Hash and execute the same byte buffer: no hash/load TOCTOU gap.
+    source_bytes = module_path.read_bytes()
+    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+    module_name = "agent_replay_ddc_radial_frequency_v10"
+    module = types.ModuleType(module_name)
+    module.__file__ = str(module_path)
+    module.__package__ = ""
+    sys.modules[module_name] = module
 
     sys.path.insert(0, str(src_dir))
     try:
-        spec = importlib.util.spec_from_file_location(
-            "agent_replay_ddc_radial_frequency_v10",
-            module_path,
-        )
-        if spec is None or spec.loader is None:
-            raise RadialAdapterError("unable to load DDC Radial module")
-
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = module
-        spec.loader.exec_module(module)
+        code = compile(source_bytes, str(module_path), "exec")
+        exec(code, module.__dict__)
     finally:
         try:
             sys.path.remove(str(src_dir))
@@ -53,10 +52,9 @@ def _load_radial_module():
             pass
 
     return module, {
-        "path": str(module_path),
+        "path": "src/radial_frequency_v10.py",
         "sha256": source_sha256,
     }
-
 
 def _hypothesis_to_dict(hypothesis) -> dict[str, Any]:
     return {
