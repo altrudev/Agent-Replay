@@ -101,6 +101,7 @@ def _radial_hints(attrs: dict[str, Any]) -> dict[str, Any]:
         "shared_atomic_boundary",
         "freshness_bound",
         "context_bound",
+        "relation",
     }
     out: dict[str, Any] = {}
     for key, value in attrs.items():
