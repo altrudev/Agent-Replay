@@ -25,6 +25,7 @@ def test_otlp_refund_fixture_normalizes_to_canonical_events(tmp_path: Path):
     assert events[3]["actor"] == "approval-gate"
     assert events[4]["actor"] == "payment-api"
     assert events[4]["evidence"]["trace_id"] == "trace-refund-750"
+    assert events[4]["evidence"]["radial"]["relation"] == "commits"
 
     target = tmp_path / "canonical.jsonl"
     write_canonical_jsonl("examples/refund-750/otel.json", target)
@@ -37,6 +38,7 @@ def test_otlp_refund_fixture_normalizes_to_canonical_events(tmp_path: Path):
         == "span:trace-refund-750:019"
     )
     assert report["confidence"] == "HIGH"
+    assert report["reproducibility"] == "NOT_TESTED"
 
 
 def test_generic_otel_without_expectations_does_not_invent_failure(tmp_path: Path):
@@ -69,7 +71,9 @@ def test_generic_otel_without_expectations_does_not_invent_failure(tmp_path: Pat
 
     assert report["divergences"] == []
     assert report["expectation_coverage"]["status"] == "NO_EXPECTATIONS"
-    assert report["reproducibility"] == "NO_DIVERGENCE_FOUND"
+    assert report["timeline"][0]["status"] == "UNASSESSED"
+    assert report["reconstruction_status"] == "NO_DIVERGENCE_ESTABLISHED"
+    assert report["reproducibility"] == "NOT_TESTED"
 
 
 def test_partial_trace_preserves_external_parent_without_false_edge():
