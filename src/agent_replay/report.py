@@ -24,6 +24,8 @@ def _append_trace(lines: list[str], report: dict[str, Any]) -> None:
     lines.append(f"Subject: {trace.get('subject')}")
     lines.append(f"Model: {model.get('provider')}/{model.get('model_id')}")
     lines.append(f"Runtime: {runtime.get('platform')}")
+    if trace.get("record_sha256"):
+        lines.append(f"TRACE record SHA-256: {trace.get('record_sha256')}")
     lines.append(f"Scope: {verification.get('scope', '')}")
 
 
@@ -35,12 +37,15 @@ def render_text(report: dict[str, Any]) -> str:
     lines.append("AGENT REPLAY INCIDENT")
     lines.append(f"Evidence SHA-256: {report['input_sha256']}")
     lines.append(f"Canonical SHA-256: {report['canonical_sha256']}")
+    if report.get("input_format"):
+        lines.append(f"Input format: {report['input_format']}")
     lines.append(f"Events: {report['event_count']}")
     lines.append(
         "Expectation coverage: "
         f"{coverage['status']} "
         f"({coverage['events_with_expectations']}/{coverage['total_events']})"
     )
+    lines.append(f"Reconstruction: {report['reconstruction_status']}")
     lines.append(f"Reproducibility: {report['reproducibility']}")
     lines.append(f"Confidence: {report['confidence']}")
     lines.append("")
@@ -58,7 +63,8 @@ def render_text(report: dict[str, Any]) -> str:
         if coverage["status"] in {"NO_EXPECTATIONS", "PARTIAL"}:
             lines.append(coverage["claim"])
         _append_trace(lines, report)
-        return "\n".join(lines)
+        return "
+".join(lines)
 
     lines.append("FIRST PROVABLE DIVERGENCE")
     lines.append(f"{first['timestamp']}  {first['event_id']}  {first['kind']}")
@@ -97,4 +103,5 @@ def render_text(report: dict[str, Any]) -> str:
         )
 
     _append_trace(lines, report)
-    return "\n".join(lines)
+    return "
+".join(lines)
