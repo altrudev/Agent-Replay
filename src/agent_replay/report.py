@@ -48,6 +48,8 @@ def render_text(report: dict[str, Any]) -> str:
     lines.append(f"Reconstruction: {report['reconstruction_status']}")
     lines.append(f"Reproducibility: {report['reproducibility']}")
     lines.append(f"Confidence: {report['confidence']}")
+    lines.append(f"Expectation scope: {report['expectation_scope']}")
+    lines.append(f"Confidence scope: {report['confidence_scope']}")
     lines.append("")
 
     lines.append("TIMELINE")
