@@ -9,6 +9,7 @@
     "canonical_sha256",
     "event_count",
     "expectation_coverage",
+    "expectation_scope",
     "timeline",
     "first_provable_divergence",
     "divergences",
@@ -16,49 +17,102 @@
     "attribution",
     "attribution_scope",
     "confidence",
+    "confidence_scope",
     "reproducibility",
     "reconstruction_status"
   ],
   "properties": {
-    "schema": {"const": "agent-replay.incident.v2"},
-    "input_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "canonical_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
-    "input_format": {"type": "string"},
-    "event_count": {"type": "integer", "minimum": 0},
+    "schema": {
+      "const": "agent-replay.incident.v2"
+    },
+    "input_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "canonical_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "input_format": {
+      "type": "string"
+    },
+    "event_count": {
+      "type": "integer",
+      "minimum": 0
+    },
     "expectation_coverage": {
       "$ref": "#/$defs/expectationCoverage"
     },
     "timeline": {
       "type": "array",
-      "items": {"$ref": "#/$defs/timelineEvent"}
+      "items": {
+        "$ref": "#/$defs/timelineEvent"
+      }
     },
     "first_provable_divergence": {
       "anyOf": [
-        {"type": "null"},
-        {"$ref": "#/$defs/divergence"}
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/divergence"
+        }
       ]
     },
     "divergences": {
       "type": "array",
-      "items": {"$ref": "#/$defs/divergence"}
+      "items": {
+        "$ref": "#/$defs/divergence"
+      }
     },
     "causal_chain": {
       "type": "array",
-      "items": {"$ref": "#/$defs/chainEvent"}
+      "items": {
+        "$ref": "#/$defs/chainEvent"
+      }
     },
     "attribution": {
       "type": "array",
-      "items": {"$ref": "#/$defs/attribution"}
+      "items": {
+        "$ref": "#/$defs/attribution"
+      }
     },
-    "attribution_scope": {"type": "string"},
+    "attribution_scope": {
+      "type": "string"
+    },
     "confidence": {
-      "enum": ["NONE", "MEDIUM", "HIGH"]
+      "enum": [
+        "NONE",
+        "MEDIUM",
+        "HIGH"
+      ]
     },
     "reproducibility": {
-      "enum": ["NOT_TESTED"]
+      "enum": [
+        "NOT_TESTED"
+      ]
     },
     "reconstruction_status": {
-      "enum": ["DIVERGENCE_RECONSTRUCTED", "NO_DIVERGENCE_ESTABLISHED"]
+      "enum": [
+        "DIVERGENCE_RECONSTRUCTED",
+        "NO_DIVERGENCE_ESTABLISHED"
+      ]
+    },
+    "expectation_scope": {
+      "type": "string"
+    },
+    "confidence_scope": {
+      "type": "string"
+    },
+    "selected_trace_id": {
+      "type": "string"
+    },
+    "supplementary_evidence_bundle_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "trace_evidence": {
+      "type": "object"
     }
   },
   "$defs": {
@@ -73,19 +127,42 @@
       ],
       "properties": {
         "status": {
-          "enum": ["NO_EVENTS", "NO_EXPECTATIONS", "PARTIAL", "COMPLETE"]
+          "enum": [
+            "NO_EVENTS",
+            "NO_EXPECTATIONS",
+            "PARTIAL",
+            "COMPLETE"
+          ]
         },
-        "events_with_expectations": {"type": "integer", "minimum": 0},
-        "total_events": {"type": "integer", "minimum": 0},
-        "ratio": {"type": "number", "minimum": 0, "maximum": 1},
-        "claim": {"type": "string"}
+        "events_with_expectations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_events": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "claim": {
+          "type": "string"
+        }
       }
     },
     "mismatch": {
       "type": "object",
-      "required": ["field", "expected", "observed"],
+      "required": [
+        "field",
+        "expected",
+        "observed"
+      ],
       "properties": {
-        "field": {"type": "string"},
+        "field": {
+          "type": "string"
+        },
         "expected": {},
         "observed": {}
       }
@@ -102,17 +179,46 @@
         "mismatches"
       ],
       "properties": {
-        "event_id": {"type": "string"},
-        "timestamp": {"type": "string", "format": "date-time"},
-        "actor": {"type": "string"},
-        "kind": {"type": "string"},
-        "status": {"enum": ["VALID", "DIVERGENT", "UNASSESSED"]},
-        "parent_ids": {"type": "array", "items": {"type": "string"}},
-        "source_line": {"type": ["integer", "null"]},
-        "evidence": {"type": "object"},
+        "event_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "VALID",
+            "DIVERGENT",
+            "UNASSESSED"
+          ]
+        },
+        "parent_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source_line": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "evidence": {
+          "type": "object"
+        },
         "mismatches": {
           "type": "array",
-          "items": {"$ref": "#/$defs/mismatch"}
+          "items": {
+            "$ref": "#/$defs/mismatch"
+          }
         }
       }
     },
@@ -127,16 +233,39 @@
         "mismatches"
       ],
       "properties": {
-        "event_id": {"type": "string"},
-        "timestamp": {"type": "string", "format": "date-time"},
-        "actor": {"type": "string"},
-        "kind": {"type": "string"},
-        "parent_ids": {"type": "array", "items": {"type": "string"}},
-        "source_line": {"type": ["integer", "null"]},
-        "evidence": {"type": "object"},
+        "event_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "actor": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "parent_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source_line": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "evidence": {
+          "type": "object"
+        },
         "mismatches": {
           "type": "array",
-          "items": {"$ref": "#/$defs/mismatch"}
+          "items": {
+            "$ref": "#/$defs/mismatch"
+          }
         }
       }
     },
@@ -152,10 +281,19 @@
         "divergent_ancestor_ids"
       ],
       "properties": {
-        "event_id": {"type": "string"},
-        "timestamp": {"type": "string", "format": "date-time"},
-        "kind": {"type": "string"},
-        "actor": {"type": "string"},
+        "event_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "actor": {
+          "type": "string"
+        },
         "relationship": {
           "enum": [
             "ROOT_DIVERGENCE",
@@ -163,18 +301,48 @@
             "TEMPORALLY_DOWNSTREAM"
           ]
         },
-        "direct_parent_ids": {"type": "array", "items": {"type": "string"}},
-        "divergent_ancestor_ids": {"type": "array", "items": {"type": "string"}}
+        "direct_parent_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "divergent_ancestor_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "attribution": {
       "type": "object",
-      "required": ["actor", "role", "event_ids", "basis"],
+      "required": [
+        "actor",
+        "role",
+        "event_ids",
+        "basis"
+      ],
       "properties": {
-        "actor": {"type": "string"},
-        "role": {"enum": ["PRIMARY", "CONTRIBUTING", "DOWNSTREAM"]},
-        "event_ids": {"type": "array", "items": {"type": "string"}},
-        "basis": {"type": "string"}
+        "actor": {
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "PRIMARY",
+            "CONTRIBUTING",
+            "DOWNSTREAM"
+          ]
+        },
+        "event_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "basis": {
+          "type": "string"
+        }
       }
     }
   }
