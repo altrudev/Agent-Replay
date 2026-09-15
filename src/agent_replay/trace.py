@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,10 @@ def _trace_api():
             "TRACE support is optional. Install with: pip install 'agent-replay[trace]'"
         ) from exc
     return validate_json, verify_record
+
+
+def _sha256(path: str | Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def _load_json_object(path: str | Path, label: str) -> dict[str, Any]:
@@ -50,10 +55,17 @@ def _load_trusted_key(path: str | Path):
     try:
         return load_pem_public_key(source.read_bytes())
     except (OSError, ValueError, TypeError) as exc:
-        raise TraceEvidenceError(f"trusted TRACE key is not a valid PEM public key: {source}") from exc
+        raise TraceEvidenceError(
+            f"trusted TRACE key is not a valid PEM public key: {source}"
+        ) from exc
 
 
-def _summary(record: dict[str, Any]) -> dict[str, Any]:
+def _summary(
+    record: dict[str, Any],
+    *,
+    record_sha256: str,
+    trusted_key_sha256: str,
+) -> dict[str, Any]:
     model = record.get("model") if isinstance(record.get("model"), dict) else {}
     runtime = record.get("runtime") if isinstance(record.get("runtime"), dict) else {}
     policy = record.get("policy") if isinstance(record.get("policy"), dict) else {}
@@ -68,6 +80,8 @@ def _summary(record: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "format": "TRACE",
+        "record_sha256": record_sha256,
+        "trusted_key_sha256": trusted_key_sha256,
         "eat_profile": record.get("eat_profile"),
         "iat": record.get("iat"),
         "subject": record.get("subject"),
@@ -124,7 +138,11 @@ def verify_trace_record(
 
     validate_json(record)
     verify_record(record, public_key_or_jwk=trusted_key)
-    return _summary(record)
+    return _summary(
+        record,
+        record_sha256=_sha256(record_path),
+        trusted_key_sha256=_sha256(trusted_key_path),
+    )
 
 
 def render_trace_summary(summary: dict[str, Any]) -> str:
@@ -137,6 +155,8 @@ def render_trace_summary(summary: dict[str, Any]) -> str:
     lines = [
         "TRACE EVIDENCE",
         f"Verification: {verification['status']}",
+        f"Record SHA-256: {summary.get('record_sha256')}",
+        f"Trusted key SHA-256: {summary.get('trusted_key_sha256')}",
         f"Subject: {summary.get('subject')}",
         f"Model: {model.get('provider')}/{model.get('model_id')}",
         f"Runtime: {runtime.get('platform')}",
