@@ -13,7 +13,7 @@ authors = [{name = "Valentyn Rukhaylo"}]
 dependencies = []
 
 [project.optional-dependencies]
-trace = ["agentrust-trace>=0.5.0"]
+trace = ["agentrust-trace>=0.5.0,<0.6.0"]
 
 [project.scripts]
 agent-replay = "agent_replay.cli:main"
