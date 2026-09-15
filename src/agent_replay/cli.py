@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import tempfile
 from pathlib import Path
@@ -14,6 +15,10 @@ def _emit(incident, as_json: bool):
         print(json.dumps(incident, indent=2, sort_keys=True))
     else:
         print(render_text(incident))
+
+
+def _sha256(path: str | Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def main():
@@ -104,11 +109,16 @@ def main():
 
         if args.format == "jsonl":
             incident = reconstruct(args.input)
+            incident["input_format"] = "canonical-jsonl"
         else:
+            original_sha256 = _sha256(args.input)
             with tempfile.TemporaryDirectory(prefix="agent-replay-otel-") as tmp:
                 canonical = Path(tmp) / "canonical.jsonl"
                 write_canonical_jsonl(args.input, canonical)
                 incident = reconstruct(str(canonical))
+            # input_sha256 always identifies the bytes the caller supplied.
+            incident["input_sha256"] = original_sha256
+            incident["input_format"] = "otlp-json"
 
         if trace_summary is not None:
             incident["trace_evidence"] = trace_summary
