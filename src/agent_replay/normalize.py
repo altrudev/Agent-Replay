@@ -13,6 +13,13 @@ class EvidenceFormatError(ValueError):
     pass
 
 
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def _reject_json_constant(value: str):
+    raise ValueError(f"non-finite JSON value is not permitted: {value}")
+
+
 def _dict(value: Any, field_name: str, line_no: int) -> dict[str, Any]:
     if value is None:
         return {}
@@ -63,13 +70,35 @@ def _canonical_timestamp(value: str, line_no: int) -> str:
     return parsed.isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
+def _datetime_to_ns(value: datetime) -> int:
+    delta = value - _EPOCH
+    return (
+        ((delta.days * 86400) + delta.seconds) * 1_000_000_000
+        + delta.microseconds * 1000
+    )
+
+
+def _event_time_ns(event: CanonicalEvent) -> int:
+    exact = event.evidence.get("otel_start_time_unix_nano")
+    if isinstance(exact, (str, int)):
+        try:
+            return int(exact)
+        except (TypeError, ValueError):
+            raise EvidenceFormatError(
+                f"line {event.source_line}: invalid otel_start_time_unix_nano"
+            )
+    return _datetime_to_ns(
+        _parse_timestamp(event.timestamp, event.source_line or 0)
+    )
+
+
 def _validate_and_order(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
     by_id = {event.event_id: event for event in events}
     children: dict[str, list[str]] = {event.event_id: [] for event in events}
     indegree: dict[str, int] = {event.event_id: 0 for event in events}
 
     for event in events:
-        child_time = _parse_timestamp(event.timestamp, event.source_line or 0)
+        child_time = _event_time_ns(event)
         for parent_id in event.parent_ids:
             if parent_id == event.event_id:
                 raise EvidenceFormatError(
@@ -80,7 +109,7 @@ def _validate_and_order(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
                 raise EvidenceFormatError(
                     f"line {event.source_line}: unknown parent_id {parent_id!r}"
                 )
-            parent_time = _parse_timestamp(parent.timestamp, parent.source_line or 0)
+            parent_time = _event_time_ns(parent)
             if parent_time > child_time:
                 raise EvidenceFormatError(
                     f"line {event.source_line}: parent {parent_id!r} occurs after child "
@@ -89,15 +118,12 @@ def _validate_and_order(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
             children[parent_id].append(event.event_id)
             indegree[event.event_id] += 1
 
-    ready: list[tuple[datetime, str]] = []
+    ready: list[tuple[int, str]] = []
     for event in events:
         if indegree[event.event_id] == 0:
             heapq.heappush(
                 ready,
-                (
-                    _parse_timestamp(event.timestamp, event.source_line or 0),
-                    event.event_id,
-                ),
+                (_event_time_ns(event), event.event_id),
             )
 
     ordered: list[CanonicalEvent] = []
@@ -112,10 +138,7 @@ def _validate_and_order(events: list[CanonicalEvent]) -> list[CanonicalEvent]:
                 child = by_id[child_id]
                 heapq.heappush(
                     ready,
-                    (
-                        _parse_timestamp(child.timestamp, child.source_line or 0),
-                        child.event_id,
-                    ),
+                    (_event_time_ns(child), child.event_id),
                 )
 
     if len(ordered) != len(events):
@@ -140,10 +163,10 @@ def normalize_jsonl(path: str | Path) -> list[CanonicalEvent]:
             if not line:
                 continue
             try:
-                raw = json.loads(line)
-            except json.JSONDecodeError as exc:
+                raw = json.loads(line, parse_constant=_reject_json_constant)
+            except (json.JSONDecodeError, ValueError) as exc:
                 raise EvidenceFormatError(
-                    f"line {line_no}: invalid JSON: {exc.msg}"
+                    f"line {line_no}: invalid JSON: {exc}"
                 ) from exc
 
             if not isinstance(raw, dict):
