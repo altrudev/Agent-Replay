@@ -21,6 +21,21 @@ def _sha256(path: str | Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def _supplementary_bundle_sha256(incident: dict, trace_summary: dict) -> str:
+    payload = {
+        "input_sha256": incident["input_sha256"],
+        "canonical_sha256": incident["canonical_sha256"],
+        "trace_record_sha256": trace_summary["record_sha256"],
+        "trace_trusted_key_sha256": trace_summary["trusted_key_sha256"],
+    }
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def main():
     parser = argparse.ArgumentParser(prog="agent-replay")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -35,6 +50,10 @@ def main():
         choices=("jsonl", "otel"),
         default="jsonl",
         help="input format (default: jsonl)",
+    )
+    reconstruct_parser.add_argument(
+        "--trace-id",
+        help="trace ID to select when an OTLP document contains multiple traces",
     )
     reconstruct_parser.add_argument(
         "--json",
@@ -78,6 +97,10 @@ def main():
     )
     otel_parser.add_argument("input")
     otel_parser.add_argument(
+        "--trace-id",
+        help="trace ID to select when an OTLP document contains multiple traces",
+    )
+    otel_parser.add_argument(
         "-o",
         "--output",
         required=True,
@@ -87,7 +110,11 @@ def main():
     args = parser.parse_args()
 
     if args.command == "ingest" and args.ingest_format == "otel":
-        target = write_canonical_jsonl(args.input, args.output)
+        target = write_canonical_jsonl(
+            args.input,
+            args.output,
+            trace_id=args.trace_id,
+        )
         print(str(target))
         return
 
@@ -102,6 +129,8 @@ def main():
     if args.command == "reconstruct":
         if bool(args.trace_record) != bool(args.trace_key):
             parser.error("--trace-record and --trace-key must be supplied together")
+        if args.format == "jsonl" and args.trace_id:
+            parser.error("--trace-id is only valid with --format otel")
 
         trace_summary = None
         if args.trace_record:
@@ -114,14 +143,22 @@ def main():
             original_sha256 = _sha256(args.input)
             with tempfile.TemporaryDirectory(prefix="agent-replay-otel-") as tmp:
                 canonical = Path(tmp) / "canonical.jsonl"
-                write_canonical_jsonl(args.input, canonical)
+                write_canonical_jsonl(
+                    args.input,
+                    canonical,
+                    trace_id=args.trace_id,
+                )
                 incident = reconstruct(str(canonical))
-            # input_sha256 always identifies the bytes the caller supplied.
             incident["input_sha256"] = original_sha256
             incident["input_format"] = "otlp-json"
+            if args.trace_id:
+                incident["selected_trace_id"] = args.trace_id
 
         if trace_summary is not None:
             incident["trace_evidence"] = trace_summary
+            incident["supplementary_evidence_bundle_sha256"] = (
+                _supplementary_bundle_sha256(incident, trace_summary)
+            )
 
         _emit(incident, args.json)
 
