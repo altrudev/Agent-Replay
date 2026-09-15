@@ -8,6 +8,59 @@ Agent Replay answers a narrow forensic question:
 
 It is **not** an observability platform, agent runtime, policy engine, or monitoring service.
 
+## v0.4 — AgenTrust TRACE evidence
+
+Agent Replay can now verify a standalone TRACE v0.2 Trust Record against a caller-supplied trusted issuer key and attach the verified record summary to an incident reconstruction.
+
+Install the optional adapter dependency:
+
+```bash
+python -m pip install -e '.[trace]'
+```
+
+Verify a TRACE record directly:
+
+```bash
+agent-replay verify-trace session.trace.json \
+  --trusted-key issuer-public.pem
+```
+
+Attach verified TRACE evidence to a reconstruction:
+
+```bash
+agent-replay reconstruct \
+  examples/refund-750/events.jsonl \
+  --trace-record session.trace.json \
+  --trace-key issuer-public.pem
+```
+
+Machine-readable output includes a `trace_evidence` object:
+
+```text
+TRACE record
+    ↓
+schema / profile validation
+    ↓
+signature + freshness verification
+    ↓
+caller-supplied trusted issuer key
+    ↓
+Agent Replay incident evidence summary
+```
+
+### TRACE trust boundary
+
+Agent Replay does **not** trust the public key embedded in an incoming TRACE record. The issuer key must be supplied independently as PEM or JWK JSON.
+
+The current adapter verifies the standalone TRACE record's schema/profile, cryptographic signature, and freshness through the released `agentrust-trace` package. It does **not** independently verify:
+
+- hardware attestation evidence,
+- transparency-ledger inclusion,
+- cMCP RuntimeClaim envelopes,
+- or that the incident input is the external transcript committed by `tool_transcript.hash`.
+
+Those distinctions are preserved in the emitted verification scope rather than inferred.
+
 ## v0.3 — OpenTelemetry ingestion
 
 Agent Replay can reconstruct directly from OpenTelemetry OTLP JSON.

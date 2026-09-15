@@ -11,6 +11,22 @@ def _fmt(value: Any) -> str:
     return str(value)
 
 
+def _append_trace(lines: list[str], report: dict[str, Any]) -> None:
+    trace = report.get("trace_evidence")
+    if not isinstance(trace, dict):
+        return
+    verification = trace.get("verification", {})
+    model = trace.get("model", {})
+    runtime = trace.get("runtime", {})
+    lines.append("")
+    lines.append("TRACE EVIDENCE")
+    lines.append(f"Verification: {verification.get('status', 'UNKNOWN')}")
+    lines.append(f"Subject: {trace.get('subject')}")
+    lines.append(f"Model: {model.get('provider')}/{model.get('model_id')}")
+    lines.append(f"Runtime: {runtime.get('platform')}")
+    lines.append(f"Scope: {verification.get('scope', '')}")
+
+
 def render_text(report: dict[str, Any]) -> str:
     lines: list[str] = []
     first = report.get("first_provable_divergence")
@@ -41,6 +57,7 @@ def render_text(report: dict[str, Any]) -> str:
         lines.append("No provable divergence found.")
         if coverage["status"] in {"NO_EXPECTATIONS", "PARTIAL"}:
             lines.append(coverage["claim"])
+        _append_trace(lines, report)
         return "\n".join(lines)
 
     lines.append("FIRST PROVABLE DIVERGENCE")
@@ -79,4 +96,5 @@ def render_text(report: dict[str, Any]) -> str:
             f":{item.get('source_line', '?')}"
         )
 
+    _append_trace(lines, report)
     return "\n".join(lines)
