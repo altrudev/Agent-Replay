@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.metadata
 import json
 from pathlib import Path
 from typing import Any
@@ -78,8 +79,17 @@ def _summary(
         record.get("appraisal") if isinstance(record.get("appraisal"), dict) else {}
     )
 
+    try:
+        verifier_version = importlib.metadata.version("agentrust-trace")
+    except importlib.metadata.PackageNotFoundError:
+        verifier_version = "unknown"
+
     return {
         "format": "TRACE",
+        "verifier_package": {
+            "name": "agentrust-trace",
+            "version": verifier_version,
+        },
         "record_sha256": record_sha256,
         "trusted_key_sha256": trusted_key_sha256,
         "eat_profile": record.get("eat_profile"),
