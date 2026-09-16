@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-replay"
-version = "0.4.2"
+version = "0.4.3"
 description = "Standalone incident reconstruction for AI agents"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,7 +13,7 @@ authors = [{name = "Valentyn Rukhaylo"}]
 dependencies = []
 
 [project.optional-dependencies]
-trace = ["agentrust-trace>=0.9.1,<0.10.0"]
+trace = ["agentrust-trace==0.9.0"]
 dev = ["pytest>=8,<10", "jsonschema>=4.23,<5"]
 
 [project.scripts]
