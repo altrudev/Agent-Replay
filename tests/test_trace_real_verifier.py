@@ -32,6 +32,7 @@ def _base_record() -> dict:
             "status": "none",
             "verifier": "https://verifier.example.test",
         },
+        "transparency": "https://registry.example.test/trace/sample",
     }
 
 
