@@ -8,7 +8,7 @@ Agent Replay answers a narrow forensic question:
 
 It is **not** an observability platform, agent runtime, policy engine, or monitoring service.
 
-Current hardening release: **v0.4.2**.
+Current hardening line: **v0.4.3**.
 
 - See [CHANGELOG.md](CHANGELOG.md) for release history.
 - See [SECURITY.md](SECURITY.md) before processing sensitive or untrusted evidence.
@@ -57,7 +57,7 @@ Agent Replay incident evidence summary
 
 Agent Replay does **not** trust the public key embedded in an incoming TRACE record. The issuer key must be supplied independently as PEM or JWK JSON.
 
-The current adapter verifies the standalone TRACE record's schema/profile, cryptographic signature, and freshness through the audited `agentrust-trace` **0.9.1** verifier line (`>=0.9.1,<0.10.0`). It does **not** independently verify:
+The current adapter verifies the standalone TRACE record's schema/profile, cryptographic signature, and freshness through the audited `agentrust-trace` **0.9.0** verifier (`==0.9.0`). It does **not** independently verify:
 
 - hardware attestation evidence,
 - transparency-ledger inclusion,
