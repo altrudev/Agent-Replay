@@ -2,6 +2,17 @@
 
 All notable changes to Agent Replay are documented here.
 
+## 0.4.3
+
+Reproducibility repair for the TRACE marketplace integration.
+
+### Changed
+
+- Pin the optional TRACE verifier to the actually published `agentrust-trace==0.9.0` release.
+- Replace the unreleased 0.9.1 compatibility claim; PyPI publishes 0.9.0 and then 0.10.0.
+- Add real-verifier integration coverage for a valid signed record, tampering, and a wrong caller-supplied trusted key.
+- Core reconstruction behavior is unchanged.
+
 ## 0.4.2
 
 Compatibility-only update for the audited TRACE v0.9.1 verifier line.
