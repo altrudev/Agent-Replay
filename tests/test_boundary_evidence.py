@@ -55,6 +55,7 @@ def test_authenticated_policy_and_revocation_receipt_are_verified():
     policy_payload = {
         "policy_id": "pay-policy",
         "policy_version": "18",
+        "authority_version": "18",
         "event_id": "exec-1",
         "subject": "payment",
         "action": "execute",
@@ -70,6 +71,7 @@ def test_authenticated_policy_and_revocation_receipt_are_verified():
         "authority_revoked",
         observed={"authority_version": "18"},
     )
+    policy_sha256 = hashlib.sha256(_canonical(policy_payload)).hexdigest()
     receipt_payload = {
         "revocation_id": "rev-1",
         "authority_version": "18",
@@ -77,9 +79,9 @@ def test_authenticated_policy_and_revocation_receipt_are_verified():
         "received_at": "2026-09-17T20:59:00Z",
         "policy_id": "pay-policy",
         "policy_version": "18",
-        "revocation_sha256": "a" * 64,
+        "policy_sha256": policy_sha256,
+        "revocation_sha256": revocation_digest,
         "revocation_event_id": "rev-evt",
-        "revocation_event_sha256": revocation_digest,
         "nonce": "n-1",
     }
     records = [{
@@ -171,9 +173,9 @@ def test_receipt_after_execution_does_not_establish_pre_execution_delivery():
                 "received_at": "2026-09-17T21:01:00Z",
                 "policy_id": "pay-policy",
                 "policy_version": "18",
-                "revocation_sha256": "b" * 64,
+                "policy_sha256": "c" * 64,
+                "revocation_sha256": revocation_digest,
                 "revocation_event_id": "rev-evt",
-                "revocation_event_sha256": revocation_digest,
                 "nonce": "n-2",
             })
         },
