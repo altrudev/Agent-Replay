@@ -69,7 +69,7 @@ The signed receipt payload must include:
 - `revocation_sha256`
 - `nonce`
 
-The receipt must bind the exact supplied revocation event bytes, the exact signed policy payload, and the same authority version. `received_at` must be no later than the execution event and no earlier than the bound revocation event.
+The receipt must bind the canonical Agent Replay representation of the supplied revocation event, the exact signed policy payload, and the same authority version. `received_at` must be no later than the execution event and no earlier than the bound revocation event.
 
 ## Claim boundary
 
