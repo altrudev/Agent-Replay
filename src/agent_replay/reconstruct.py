@@ -5,7 +5,14 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .analyze import attribution, build_divergences, causal_chain, confidence, mismatches
+from .analyze import (
+    attribution,
+    build_divergences,
+    causal_chain,
+    confidence,
+    mismatches,
+    not_observed,
+)
 from .normalize import normalize_jsonl
 
 
@@ -13,10 +20,15 @@ def _timeline(events):
     out = []
     for event in events:
         mm = mismatches(event)
+        missing = not_observed(event)
         if not event.expected:
             status = "UNASSESSED"
+        elif mm:
+            status = "DIVERGENT"
+        elif missing:
+            status = "UNASSESSED"
         else:
-            status = "DIVERGENT" if mm else "VALID"
+            status = "VALID"
 
         out.append(
             {
@@ -29,6 +41,7 @@ def _timeline(events):
                 "source_line": event.source_line,
                 "evidence": event.evidence,
                 "mismatches": mm,
+                "not_observed": missing,
             }
         )
     return out
