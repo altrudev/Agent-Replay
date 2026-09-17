@@ -8,7 +8,7 @@ Agent Replay answers a narrow forensic question:
 
 It is **not** an observability platform, agent runtime, policy engine, or monitoring service.
 
-Current hardening line: **v0.5.0**.
+Current hardening line: **v0.5.1**.
 
 - See [CHANGELOG.md](CHANGELOG.md) for release history.
 - See [SECURITY.md](SECURITY.md) before processing sensitive or untrusted evidence.
@@ -69,12 +69,27 @@ A prior machine-readable incident can be replayed against its evidence:
 agent-replay reproduce incident.json examples/refund-750/events.jsonl
 ```
 
-The comparison checks the normalized evidence hash, event count, reconstruction status, first provable divergence, and causal-chain signature and returns:
+The comparison checks the normalized evidence hash, event count, reconstruction status, first provable divergence, causal-chain signature, and the incident's supplementary evidence scope.
+
+When the original incident includes verified TRACE evidence, replay the same independently supplied TRACE record and trusted key:
+
+```bash
+agent-replay reproduce \
+  incident.json \
+  examples/refund-750/events.jsonl \
+  --trace-record session.trace.json \
+  --trace-key issuer-public.pem
+```
+
+TRACE-aware reproduction re-verifies and compares the TRACE record SHA-256, trusted-key SHA-256, and supplementary evidence-bundle binding. Results are:
 
 ```text
-REPRODUCED
-DRIFTED
+REPRODUCED   same core reconstruction and same evidence scope
+INCOMPLETE   core reproduced but required supplementary TRACE evidence was not replayed
+DRIFTED      core or supplied supplementary evidence differs
 ```
+
+Agent Replay therefore does not report plain `REPRODUCED` for a TRACE-backed incident unless that supplementary evidence was actually replayed.
 
 Ordinary reconstruction still reports `reproducibility = NOT_TESTED` until this check is actually run.
 
@@ -404,14 +419,16 @@ schemas/share-bundle-v1.schema.json
 
 The internal incident and externally shareable artifacts have separate schemas intentionally; sanitization is a representation boundary, not a presentation flag.
 
-## Development
+## Development and release assurance
 
-Standalone core and schema-conformance tests:
+Install development/schema dependencies and run the bounded release suite:
 
 ```bash
 python -m pip install -e '.[dev]'
 pytest -q
 ```
+
+The root pytest configuration collects both the standalone core tests and `adapters/ddc/tests`, so DDC adapter unit contracts are part of the normal release gate. The real TRACE verifier lane remains separate because it requires the optional pinned dependency `agentrust-trace==0.9.0`.
 
 Normal runtime use still requires no third-party core dependencies:
 
@@ -423,8 +440,15 @@ Optional DDC adapter:
 
 ```bash
 python -m pip install -e ./adapters/ddc
-pytest -q adapters/ddc/tests
 ```
+
+Before a release, also verify the built core wheel in a fresh virtual environment:
+
+```bash
+python tools/release_smoke.py
+```
+
+That smoke gate builds the wheel without dependency resolution, installs it into a clean environment, and exercises `agent-replay --version`, `doctor`, reconstruction, and safe-share export.
 
 Benchmark reconstruction on deterministic synthetic chains:
 

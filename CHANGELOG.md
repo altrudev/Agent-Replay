@@ -2,6 +2,27 @@
 
 All notable changes to Agent Replay are documented here.
 
+## 0.5.1
+
+Assurance-closure patch following the v0.5.0 post-release sweep.
+
+### Fixed
+
+- `agent-replay reproduce` no longer reports plain `REPRODUCED` when the original incident contains TRACE evidence that was not replayed.
+- TRACE-aware reproduction now compares the TRACE record SHA-256, caller-supplied trusted-key SHA-256, and supplementary evidence-bundle binding.
+- Missing supplementary TRACE evidence reports `INCOMPLETE`; mismatched supplementary evidence reports `DRIFTED`.
+- Core and DDC adapter module `__version__` values are aligned with package metadata.
+
+### Assurance
+
+- Root release tests now collect both standalone core tests and `adapters/ddc/tests` so the optional adapter unit contracts are included in the bounded pytest release gate.
+- Added release-metadata consistency tests to prevent module/package/adapter version drift.
+- Added a clean-wheel release smoke harness that builds and installs the core wheel into a fresh virtual environment, then exercises `--version`, `doctor`, reconstruction, and safe-share export.
+- Added package discovery metadata and canonical project URLs.
+- TRACE verifier coverage remains a separate optional-dependency lane pinned to `agentrust-trace==0.9.0`.
+
+Evidence Contract 1.0 input semantics remain unchanged.
+
 ## 0.5.0
 
 Security, determinism, usability, and scale hardening without changing the Evidence Contract 1.0 input model.
