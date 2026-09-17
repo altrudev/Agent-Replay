@@ -1,21 +1,47 @@
 import argparse
 import hashlib
+import importlib.metadata
 import json
-import tempfile
+import os
+import sys
 from pathlib import Path
 
-from .otel import write_canonical_jsonl
-from .reconstruct import reconstruct
+from .normalize import (
+    DEFAULT_MAX_BYTES,
+    DEFAULT_MAX_DEPTH,
+    DEFAULT_MAX_EVENTS,
+    DEFAULT_MAX_PARENTS,
+)
+from .otel import load_otlp_json, write_canonical_jsonl
+from .reconstruct import reconstruct, reconstruct_records
+from .reproduce import compare_reconstruction
 from .report import render_text
 from .share import write_share_bundle
 from .trace import render_trace_summary, verify_trace_record
 
 
-def _emit(incident, as_json: bool):
-    if as_json:
-        print(json.dumps(incident, indent=2, sort_keys=True))
+def _version() -> str:
+    try:
+        return importlib.metadata.version("agent-replay")
+    except importlib.metadata.PackageNotFoundError:
+        return "0+unknown"
+
+
+def _write_output(text: str, output: str | None) -> None:
+    if output and output != "-":
+        Path(output).write_text(text, encoding="utf-8")
     else:
-        print(render_text(incident))
+        sys.stdout.write(text)
+
+
+def _emit(value, as_json: bool, output: str | None = None):
+    if as_json:
+        text = json.dumps(value, indent=2, sort_keys=True) + "\n"
+    else:
+        text = render_text(value)
+        if not text.endswith("\n"):
+            text += "\n"
+    _write_output(text, output)
 
 
 def _sha256(path: str | Path) -> str:
@@ -29,114 +55,102 @@ def _supplementary_bundle_sha256(incident: dict, trace_summary: dict) -> str:
         "trace_record_sha256": trace_summary["record_sha256"],
         "trace_trusted_key_sha256": trace_summary["trusted_key_sha256"],
     }
-    encoded = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
 
-def main():
-    parser = argparse.ArgumentParser(prog="agent-replay")
-    sub = parser.add_subparsers(dest="command", required=True)
+def _detect_format(path: str) -> str:
+    suffix = Path(path).suffix.lower()
+    if suffix in {".jsonl", ".ndjson"}:
+        return "jsonl"
+    if suffix == ".json":
+        return "otel"
+    return "jsonl"
 
-    reconstruct_parser = sub.add_parser(
-        "reconstruct",
-        help="Reconstruct an incident from canonical JSONL or OTLP JSON",
-    )
-    reconstruct_parser.add_argument("input")
-    reconstruct_parser.add_argument(
-        "--format",
-        choices=("jsonl", "otel"),
-        default="jsonl",
-        help="input format (default: jsonl)",
-    )
-    reconstruct_parser.add_argument(
-        "--trace-id",
-        help="trace ID to select when an OTLP document contains multiple traces",
-    )
-    reconstruct_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="emit the machine-readable incident document",
-    )
-    reconstruct_parser.add_argument(
-        "--trace-record",
-        help="optional standalone TRACE Trust Record to verify and attach",
-    )
-    reconstruct_parser.add_argument(
-        "--trace-key",
-        help="trusted TRACE issuer public key (PEM or JWK JSON)",
-    )
 
-    verify_trace_parser = sub.add_parser(
-        "verify-trace",
-        help="Verify a standalone TRACE Trust Record against a trusted issuer key",
-    )
-    verify_trace_parser.add_argument("record")
-    verify_trace_parser.add_argument(
-        "--trusted-key",
-        required=True,
-        help="trusted issuer public key (PEM or JWK JSON)",
-    )
-    verify_trace_parser.add_argument(
-        "--json",
-        action="store_true",
-        help="emit the verification summary as JSON",
-    )
+def _add_limits(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--max-bytes", type=int, default=DEFAULT_MAX_BYTES)
+    parser.add_argument("--max-events", type=int, default=DEFAULT_MAX_EVENTS)
+    parser.add_argument("--max-parents", type=int, default=DEFAULT_MAX_PARENTS)
+    parser.add_argument("--max-depth", type=int, default=DEFAULT_MAX_DEPTH)
 
-    ingest_parser = sub.add_parser(
-        "ingest",
-        help="Normalize external telemetry into Agent Replay canonical JSONL",
-    )
-    ingest_sub = ingest_parser.add_subparsers(dest="ingest_format", required=True)
 
-    otel_parser = ingest_sub.add_parser(
-        "otel",
-        help="Normalize OpenTelemetry OTLP JSON",
-    )
-    otel_parser.add_argument("input")
-    otel_parser.add_argument(
-        "--trace-id",
-        help="trace ID to select when an OTLP document contains multiple traces",
-    )
-    otel_parser.add_argument(
-        "-o",
-        "--output",
-        required=True,
-        help="canonical JSONL output path",
-    )
+def _reconstruct_input(args) -> dict:
+    fmt = _detect_format(args.input) if args.format == "auto" else args.format
+    if fmt == "jsonl":
+        if args.trace_id:
+            raise ValueError("--trace-id is only valid with OTLP input")
+        incident = reconstruct(
+            args.input,
+            max_bytes=args.max_bytes,
+            max_events=args.max_events,
+            max_parents=args.max_parents,
+            max_depth=args.max_depth,
+        )
+        incident["input_format"] = "canonical-jsonl"
+        return incident
 
-    share_parser = sub.add_parser(
-        "export-share",
-        help="Create an allowlist-only evidence bundle safe for external sharing",
+    original_sha256 = _sha256(args.input)
+    events = load_otlp_json(
+        args.input,
+        trace_id=args.trace_id,
+        max_bytes=args.max_bytes,
+        max_events=args.max_events,
     )
-    share_parser.add_argument("incident", help="machine-readable Agent Replay incident JSON")
-    share_parser.add_argument("-o", "--output", required=True, help="output JSON path")
-    share_parser.add_argument("--radial", help="optional DDC Radial JSON review")
-    share_parser.add_argument(
-        "--agent-replay-commit",
-        help="optional Agent Replay commit identifier to bind into the public bundle",
+    incident = reconstruct_records(
+        events,
+        input_sha256=original_sha256,
+        max_events=args.max_events,
+        max_parents=args.max_parents,
+        max_depth=args.max_depth,
     )
+    incident["input_format"] = "otlp-json"
+    if args.trace_id:
+        incident["selected_trace_id"] = args.trace_id
+    return incident
 
-    args = parser.parse_args()
+
+def _doctor() -> dict:
+    trace_available = True
+    try:
+        importlib.metadata.version("agentrust-trace")
+    except importlib.metadata.PackageNotFoundError:
+        trace_available = False
+    radial_root = os.environ.get("DDC_RADIAL_ROOT")
+    radial_module = None
+    if radial_root:
+        radial_module = str(Path(radial_root).expanduser() / "src" / "radial_frequency_v10.py")
+    return {
+        "schema": "agent-replay.doctor.v1",
+        "version": _version(),
+        "core": "READY",
+        "trace_optional_dependency": "AVAILABLE" if trace_available else "NOT_INSTALLED",
+        "ddc_radial_root_set": bool(radial_root),
+        "ddc_radial_module_present": bool(radial_module and Path(radial_module).is_file()),
+    }
+
+
+def _run(args, parser: argparse.ArgumentParser) -> None:
+    if args.command == "doctor":
+        result = _doctor()
+        _write_output(json.dumps(result, indent=2, sort_keys=True) + "\n", args.output)
+        return
 
     if args.command == "ingest" and args.ingest_format == "otel":
         target = write_canonical_jsonl(
             args.input,
             args.output,
             trace_id=args.trace_id,
+            max_bytes=args.max_bytes,
+            max_events=args.max_events,
         )
         print(str(target))
         return
 
     if args.command == "verify-trace":
         summary = verify_trace_record(args.record, args.trusted_key)
-        if args.json:
-            print(json.dumps(summary, indent=2, sort_keys=True))
-        else:
-            print(render_trace_summary(summary))
+        text = json.dumps(summary, indent=2, sort_keys=True) + "\n" if args.json else render_trace_summary(summary) + "\n"
+        _write_output(text, args.output)
         return
 
     if args.command == "export-share":
@@ -145,6 +159,7 @@ def main():
             args.output,
             radial_path=args.radial,
             agent_replay_commit=args.agent_replay_commit,
+            include_values=args.include_values,
         )
         print(str(target))
         return
@@ -152,38 +167,85 @@ def main():
     if args.command == "reconstruct":
         if bool(args.trace_record) != bool(args.trace_key):
             parser.error("--trace-record and --trace-key must be supplied together")
-        if args.format == "jsonl" and args.trace_id:
-            parser.error("--trace-id is only valid with --format otel")
-
-        trace_summary = None
+        incident = _reconstruct_input(args)
         if args.trace_record:
             trace_summary = verify_trace_record(args.trace_record, args.trace_key)
-
-        if args.format == "jsonl":
-            incident = reconstruct(args.input)
-            incident["input_format"] = "canonical-jsonl"
-        else:
-            original_sha256 = _sha256(args.input)
-            with tempfile.TemporaryDirectory(prefix="agent-replay-otel-") as tmp:
-                canonical = Path(tmp) / "canonical.jsonl"
-                write_canonical_jsonl(
-                    args.input,
-                    canonical,
-                    trace_id=args.trace_id,
-                )
-                incident = reconstruct(str(canonical))
-            incident["input_sha256"] = original_sha256
-            incident["input_format"] = "otlp-json"
-            if args.trace_id:
-                incident["selected_trace_id"] = args.trace_id
-
-        if trace_summary is not None:
             incident["trace_evidence"] = trace_summary
-            incident["supplementary_evidence_bundle_sha256"] = (
-                _supplementary_bundle_sha256(incident, trace_summary)
-            )
+            incident["supplementary_evidence_bundle_sha256"] = _supplementary_bundle_sha256(incident, trace_summary)
+        _emit(incident, args.json, args.output)
+        return
 
-        _emit(incident, args.json)
+    if args.command == "reproduce":
+        expected = json.loads(Path(args.incident).read_text(encoding="utf-8"))
+        replay_args = argparse.Namespace(**vars(args))
+        replay_args.input = args.evidence
+        observed = _reconstruct_input(replay_args)
+        result = compare_reconstruction(expected, observed)
+        _write_output(json.dumps(result, indent=2, sort_keys=True) + "\n", args.output)
+        if result["status"] != "REPRODUCED":
+            raise SystemExit(3)
+        return
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="agent-replay")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {_version()}")
+    parser.add_argument("--debug", action="store_true", help="show tracebacks for failures")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    reconstruct_parser = sub.add_parser("reconstruct", help="Reconstruct an incident from canonical JSONL or OTLP JSON")
+    reconstruct_parser.add_argument("input")
+    reconstruct_parser.add_argument("--format", choices=("auto", "jsonl", "otel"), default="auto")
+    reconstruct_parser.add_argument("--trace-id")
+    reconstruct_parser.add_argument("--json", action="store_true")
+    reconstruct_parser.add_argument("-o", "--output", help="output path; default stdout")
+    reconstruct_parser.add_argument("--trace-record")
+    reconstruct_parser.add_argument("--trace-key")
+    _add_limits(reconstruct_parser)
+
+    reproduce_parser = sub.add_parser("reproduce", help="Re-run evidence and compare deterministic reconstruction outputs")
+    reproduce_parser.add_argument("incident", help="previous machine-readable incident JSON")
+    reproduce_parser.add_argument("evidence", help="source evidence to replay")
+    reproduce_parser.add_argument("--format", choices=("auto", "jsonl", "otel"), default="auto")
+    reproduce_parser.add_argument("--trace-id")
+    reproduce_parser.add_argument("-o", "--output", help="output path; default stdout")
+    _add_limits(reproduce_parser)
+
+    verify_trace_parser = sub.add_parser("verify-trace", help="Verify a standalone TRACE Trust Record")
+    verify_trace_parser.add_argument("record")
+    verify_trace_parser.add_argument("--trusted-key", required=True)
+    verify_trace_parser.add_argument("--json", action="store_true")
+    verify_trace_parser.add_argument("-o", "--output")
+
+    ingest_parser = sub.add_parser("ingest", help="Normalize external telemetry into Agent Replay canonical JSONL")
+    ingest_sub = ingest_parser.add_subparsers(dest="ingest_format", required=True)
+    otel_parser = ingest_sub.add_parser("otel", help="Normalize OpenTelemetry OTLP JSON")
+    otel_parser.add_argument("input")
+    otel_parser.add_argument("--trace-id")
+    otel_parser.add_argument("-o", "--output", required=True)
+    otel_parser.add_argument("--max-bytes", type=int, default=DEFAULT_MAX_BYTES)
+    otel_parser.add_argument("--max-events", type=int, default=DEFAULT_MAX_EVENTS)
+
+    share_parser = sub.add_parser("export-share", help="Create an allowlist-only evidence bundle safe for external sharing")
+    share_parser.add_argument("incident")
+    share_parser.add_argument("-o", "--output", required=True)
+    share_parser.add_argument("--radial")
+    share_parser.add_argument("--agent-replay-commit")
+    share_parser.add_argument("--include-values", action="store_true", help="explicitly include scalar assertion values; default is redacted")
+
+    doctor_parser = sub.add_parser("doctor", help="Check core and optional integration readiness")
+    doctor_parser.add_argument("-o", "--output")
+
+    args = parser.parse_args()
+    try:
+        _run(args, parser)
+    except SystemExit:
+        raise
+    except Exception as exc:
+        if args.debug:
+            raise
+        print(f"agent-replay: {type(exc).__name__}: {exc}", file=sys.stderr)
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":
