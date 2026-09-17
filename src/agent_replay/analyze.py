@@ -44,19 +44,21 @@ def build_divergences(
     return divergences
 
 
-def _explicit_ancestors(
-    event_id: str,
-    by_id: dict[str, CanonicalEvent],
-) -> set[str]:
-    found: set[str] = set()
-    stack = list(by_id[event_id].parent_ids)
-    while stack:
-        current = stack.pop()
-        if current in found or current not in by_id:
-            continue
-        found.add(current)
-        stack.extend(by_id[current].parent_ids)
-    return found
+def _ancestor_index(events: list[CanonicalEvent]) -> dict[str, frozenset[str]]:
+    """Build ancestor closures once in topological order.
+
+    normalize.py guarantees that parents precede children, so each closure can
+    reuse already-computed parent closures instead of traversing the graph once
+    per divergence.
+    """
+    ancestors: dict[str, frozenset[str]] = {}
+    for event in events:
+        found: set[str] = set()
+        for parent_id in event.parent_ids:
+            found.add(parent_id)
+            found.update(ancestors.get(parent_id, ()))
+        ancestors[event.event_id] = frozenset(found)
+    return ancestors
 
 
 def causal_chain(
@@ -69,18 +71,16 @@ def causal_chain(
     by_id = {event.event_id: event for event in events}
     divergent_ids = {item["event_id"] for item in divergences}
     first_id = divergences[0]["event_id"]
+    ancestors = _ancestor_index(events)
 
     # Prefer explicit provenance links. Where none exist, preserve temporal
     # sequence without claiming an unproved causal edge.
     chain: list[dict[str, Any]] = []
     for item in divergences:
         event = by_id[item["event_id"]]
-        explicit = [
-            pid for pid in event.parent_ids
-            if pid in by_id
-        ]
+        explicit = [pid for pid in event.parent_ids if pid in by_id]
         divergent_ancestors = sorted(
-            _explicit_ancestors(event.event_id, by_id) & divergent_ids
+            set(ancestors.get(event.event_id, ())) & divergent_ids
         )
         chain.append(
             {
@@ -164,12 +164,7 @@ def evidence_gaps(
     divergences: list[dict[str, Any]],
     chain: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Return limits in the supplied evidence without inventing missing facts.
-
-    This stays domain-neutral: callers decide which assertions are expected.
-    Agent Replay only identifies events that cannot be assessed and causal
-    relationships that are temporal rather than explicitly evidenced.
-    """
+    """Return limits in the supplied evidence without inventing missing facts."""
     gaps: list[dict[str, Any]] = []
 
     for event in events:
