@@ -268,7 +268,8 @@ def assess_boundary_evidence(
     authenticated_expectations = 0
     verified_receipts = 0
     events_by_id = {event.event_id: event for event in events}
-    seen_receipt_nonces: set[tuple[str, str]] = set()
+    seen_receipt_nonces: dict[tuple[str, str], str] = {}
+    verified_receipt_digests: set[str] = set()
 
     for event in events:
         policy = _policy_assessment(event, trust_store=trusted)
@@ -280,17 +281,28 @@ def assess_boundary_evidence(
         )
         if receipt["status"] == "VERIFIED":
             nonce_key = (str(receipt.get("key_id", "")), str(receipt.get("nonce", "")))
-            if nonce_key in seen_receipt_nonces:
+            receipt_digest = sha256_json(
+                event.evidence.get("revocation_receipt", {}).get("payload", {})
+            )
+            prior_digest = seen_receipt_nonces.get(nonce_key)
+            if prior_digest is not None and prior_digest != receipt_digest:
                 receipt.update(
-                    status="REPLAY_DETECTED",
-                    basis="the same signed receipt nonce was already observed for this key_id",
+                    status="NONCE_COLLISION",
+                    basis="the same key_id and receipt nonce were observed with different signed payloads",
                 )
             else:
-                seen_receipt_nonces.add(nonce_key)
+                if prior_digest == receipt_digest:
+                    receipt["reused_receipt"] = True
+                seen_receipt_nonces[nonce_key] = receipt_digest
         if policy["status"] == "VERIFIED":
             authenticated_expectations += 1
         if receipt["status"] == "VERIFIED":
-            verified_receipts += 1
+            receipt_digest = sha256_json(
+                event.evidence.get("revocation_receipt", {}).get("payload", {})
+            )
+            if receipt_digest not in verified_receipt_digests:
+                verified_receipt_digests.add(receipt_digest)
+                verified_receipts += 1
         if policy["status"] != "NOT_SUPPLIED" or receipt["status"] != "NOT_SUPPLIED":
             assessments.append(
                 {
@@ -318,8 +330,9 @@ def assess_boundary_evidence(
             "to define policy or revoke authority beyond the supplied trust configuration. "
             "A verified receipt proves delivery to the signed execution_boundary_id; linking "
             "a later execution event to that same real-world boundary still depends on the "
-            "identity evidence supplied for the execution event. Receipt nonce replay "
-            "detection is limited to the supplied incident; cross-incident replay prevention "
-            "belongs to the issuing boundary or a persistent verifier."
+            "identity evidence supplied for the execution event. Within one incident, "
+            "reusing the same verified receipt is allowed, while the same key_id and nonce "
+            "with different signed payloads is rejected as a nonce collision. Cross-incident "
+            "replay prevention belongs to the issuing boundary or a persistent verifier."
         ),
     }
