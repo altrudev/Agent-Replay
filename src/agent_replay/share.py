@@ -186,7 +186,7 @@ def sanitize_incident(incident: dict[str, Any], *, include_values: bool = False)
         for item in incident.get("evidence_gaps") or [] if isinstance(item, dict)
     ]
     attribution = [
-        {"actor": actor_aliases.get(str(item.get("actor", "")), "actor-unknown"), "role": item.get("role"), "events": _alias_list(item.get("event_ids"), event_aliases)}
+        {"actor": actor_aliases.get(str(item.get("actor", "")), "role": item.get("role"), "events": _alias_list(item.get("event_ids"), event_aliases)}
         for item in incident.get("attribution") or [] if isinstance(item, dict)
     ]
 
@@ -196,14 +196,13 @@ def sanitize_incident(incident: dict[str, Any], *, include_values: bool = False)
         kind_aliases,
     )
 
-    return {
+    result = {
         "schema": "agent-replay.public-share.v1",
         "source_schema": incident.get("schema"),
         "source_input_sha256": incident.get("input_sha256"),
         "source_canonical_sha256": incident.get("canonical_sha256"),
         "event_count": incident.get("event_count"),
         "expectation_coverage": safe_coverage,
-        "boundary_evidence": safe_boundary,
         "reconstruction_status": incident.get("reconstruction_status"),
         "evidence_completeness": incident.get("evidence_completeness"),
         "confidence": incident.get("confidence"),
@@ -221,8 +220,7 @@ def sanitize_incident(incident: dict[str, Any], *, include_values: bool = False)
         "attribution": attribution,
         "evidence_gaps": gaps,
         "scope": {
-            "expectations": "CRYPTOGRAPHIC_WHEN_VERIFIED_ELSE_CALLER_SUPPLIED",
-            "boundary_receipts": "SIGNED_WHEN_VERIFIED",
+            "expectations": "CALLER_SUPPLIED_ASSERTIONS",
             "attribution": "EVIDENCE_LABELS_ONLY",
             "confidence": "STRUCTURAL_ONLY",
             "completeness": "STRUCTURAL_ONLY",
@@ -232,10 +230,16 @@ def sanitize_incident(incident: dict[str, Any], *, include_values: bool = False)
             "event_kinds_pseudonymized": True, "assertion_fields_pseudonymized": True,
             "assertion_values_included": include_values, "timestamps_omitted": True,
             "raw_evidence_omitted": True, "free_text_basis_omitted": True,
-            "trace_evidence_omitted": True, "boundary_proof_material_omitted": True,
-            "trusted_key_identifiers_omitted": True, "infrastructure_metadata_omitted": True,
+            "trace_evidence_omitted": True, "infrastructure_metadata_omitted": True,
         },
     }
+    if safe_boundary is not None:
+        result["boundary_evidence"] = safe_boundary
+        result["scope"]["expectations"] = "CRYPTOGRAPHIC_WHEN_VERIFIED_ELSE_CALLER_SUPPLIED"
+        result["scope"]["boundary_receipts"] = "SIGNED_WHEN_VERIFIED"
+        result["redaction"]["boundary_proof_material_omitted"] = True
+        result["redaction"]["trusted_key_identifiers_omitted"] = True
+    return result
 
 
 def sanitize_radial(review: dict[str, Any]) -> dict[str, Any]:
