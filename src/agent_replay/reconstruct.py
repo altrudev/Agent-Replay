@@ -5,7 +5,14 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .analyze import attribution, build_divergences, causal_chain, confidence, mismatches
+from .analyze import (
+    attribution,
+    build_divergences,
+    causal_chain,
+    confidence,
+    evidence_gaps,
+    mismatches,
+)
 from .normalize import normalize_jsonl
 
 
@@ -85,6 +92,7 @@ def reconstruct(path: str) -> dict[str, Any]:
     events = normalize_jsonl(source)
     divergences = build_divergences(events)
     chain = causal_chain(events, divergences)
+    gaps = evidence_gaps(events, divergences, chain)
 
     return {
         "schema": "agent-replay.incident.v2",
@@ -109,6 +117,14 @@ def reconstruct(path: str) -> dict[str, Any]:
         "confidence_scope": (
             "STRUCTURAL_ONLY: confidence reflects mismatch and graph structure, "
             "not independent truth, identity, or policy provenance."
+        ),
+        "evidence_gaps": gaps,
+        "evidence_completeness": (
+            "INCOMPLETE" if gaps else "COMPLETE_FOR_SUPPLIED_ASSERTIONS"
+        ),
+        "evidence_completeness_scope": (
+            "STRUCTURAL_ONLY: completeness describes supplied assertions and explicit "
+            "causal links; it does not prove that all real-world telemetry was captured."
         ),
         "reproducibility": "NOT_TESTED",
         "reconstruction_status": (
