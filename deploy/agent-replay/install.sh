@@ -18,14 +18,15 @@ install -d -o root -g root -m 0755 "$BASE" "$BASE/releases" /etc/agent-replay
 install -d -o agentreplay -g agentreplay -m 0750 /var/lib/agent-replay /run/agent-replay
 
 if [[ ! -d "$RELEASE" ]]; then
-  TMP="${RELEASE}.tmp.$$"
-  install -d -o root -g root -m 0755 "$TMP"
-  git -C "$SRC" archive --format=tar HEAD | tar -xf - -C "$TMP"
-  python3 -m venv "$TMP/.venv"
-  "$TMP/.venv/bin/python" -m pip install -q --upgrade pip
-  "$TMP/.venv/bin/python" -m pip install -q -e "$TMP[dev]" -e "$TMP/service[dev]"
-  PYTHONPATH="$TMP/src:$TMP/service" "$TMP/.venv/bin/python" -m pytest -q "$TMP/tests" "$TMP/service/tests"
-  mv "$TMP" "$RELEASE"
+  install -d -o root -g root -m 0755 "$RELEASE"
+  cleanup_failed_release() { rm -rf "$RELEASE"; }
+  trap cleanup_failed_release ERR
+  git -C "$SRC" archive --format=tar HEAD | tar -xf - -C "$RELEASE"
+  python3 -m venv "$RELEASE/.venv"
+  "$RELEASE/.venv/bin/python" -m pip install -q --upgrade pip
+  "$RELEASE/.venv/bin/python" -m pip install -q -e "$RELEASE[dev]" -e "$RELEASE/service[dev]"
+  PYTHONPATH="$RELEASE/src:$RELEASE/service" "$RELEASE/.venv/bin/python" -m pytest -q "$RELEASE/tests" "$RELEASE/service/tests"
+  trap - ERR
 fi
 
 cp "$RELEASE/deploy/agent-replay/agent-replay.service" /etc/systemd/system/agent-replay.service
