@@ -11,29 +11,43 @@ agent-replay export-share incident.json \
   -o public-share.json
 ```
 
+Assertion values are **redacted by default**. If a disclosure has been separately reviewed and authorized, scalar mismatch values can be included explicitly:
+
+```bash
+agent-replay export-share incident.json \
+  --include-values \
+  -o public-share-with-values.json
+```
+
+Even with `--include-values`, the final artifact still passes the fail-closed sensitive-pattern scan.
+
 ## Export boundary
 
 The public bundle is constructed from an explicit allowlist. It does **not** copy arbitrary source fields and then attempt to redact them afterward.
 
-Included:
+Included by default:
 
 - source incident/canonical SHA-256 values;
-- event IDs, event kinds, parent relationships and mismatch fields;
-- pseudonymized actor labels (`actor-1`, `actor-2`, ...);
+- pseudonymized event IDs, event kinds, actor labels, parent relationships, and assertion-field names;
+- mismatch type information and whether the expected/observed values differ;
 - reconstruction status, confidence and evidence-completeness state;
-- evidence-gap type/basis/effect fields;
-- DDC Radial candidate IDs/titles/subjects/rationale/falsification text;
+- evidence-gap type and pseudonymized event reference;
+- aggregate DDC Radial counts and mapping-provenance totals;
 - DDC engine SHA-256 for provenance;
 - Agent Replay commit identifier when supplied;
 - a SHA-256 over the complete pre-hash public bundle.
 
-Excluded:
+Excluded by default:
 
 - raw `evidence` objects;
+- assertion values;
 - timestamps;
 - original actor/service labels;
+- original event/kind/assertion identifiers;
+- evidence-gap basis/effect prose;
 - TRACE evidence and keys;
 - DDC engine path or source code;
+- DDC candidate IDs/titles/subjects/rationale/falsification text;
 - DDC feature vectors, scores and thresholds;
 - absolute filesystem paths;
 - infrastructure addresses;
@@ -48,7 +62,7 @@ The export boundary is designed against these failure dimensions:
 - **Representation:** the external artifact is a new, explicit public schema rather than a partial copy of the internal incident document.
 - **Authority:** the exporter does not grant publication authority to arbitrary input fields; only allowlisted fields can cross the boundary.
 - **Provenance:** source incident hashes, optional Agent Replay commit and DDC engine hash remain available without exporting source code or local paths.
-- **Privacy:** actor identities, timestamps, raw evidence and infrastructure metadata are removed or pseudonymized.
+- **Privacy:** actor identities, timestamps, raw evidence, assertion values and infrastructure metadata are removed or pseudonymized by default.
 - **Dependency:** the standalone Agent Replay core does not import or execute DDC to create the public bundle; an optional Radial JSON result is treated only as data.
 - **Observability:** the bundle states what was omitted so a recipient cannot mistake sanitization for complete raw evidence.
 - **Consequence:** export fails closed on detected sensitive patterns; it never falls back to an unredacted artifact.
