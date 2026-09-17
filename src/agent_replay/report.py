@@ -36,6 +36,26 @@ def _append_trace(lines: list[str], report: dict[str, Any]) -> None:
     lines.append(f"Scope: {verification.get('scope', '')}")
 
 
+def _append_evidence_gaps(lines: list[str], report: dict[str, Any]) -> None:
+    gaps = report.get("evidence_gaps", [])
+    lines.append("")
+    lines.append("EVIDENCE COMPLETENESS")
+    lines.append(f"Status: {report.get('evidence_completeness', 'UNKNOWN')}")
+    scope = report.get("evidence_completeness_scope")
+    if scope:
+        lines.append(f"Scope: {scope}")
+    if not gaps:
+        lines.append("- No structural evidence gaps identified in supplied assertions.")
+        return
+    for gap in gaps:
+        lines.append(
+            f"- {gap.get('event_id', '?')} {gap.get('type', 'UNKNOWN')}: "
+            f"{gap.get('basis', '')}"
+        )
+        if gap.get("effect"):
+            lines.append(f"  effect: {gap['effect']}")
+
+
 def render_text(report: dict[str, Any]) -> str:
     lines: list[str] = []
     first = report.get("first_provable_divergence")
@@ -78,6 +98,7 @@ def render_text(report: dict[str, Any]) -> str:
         lines.append("No provable divergence found.")
         if coverage["status"] in {"NO_EXPECTATIONS", "PARTIAL"}:
             lines.append(coverage["claim"])
+        _append_evidence_gaps(lines, report)
         _append_trace(lines, report)
         return "\n".join(lines)
 
@@ -117,5 +138,6 @@ def render_text(report: dict[str, Any]) -> str:
             f":{item.get('source_line', '?')}"
         )
 
+    _append_evidence_gaps(lines, report)
     _append_trace(lines, report)
     return "\n".join(lines)
