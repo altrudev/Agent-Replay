@@ -1,33 +1,39 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="https://github.com/altrudev/Agent-Replay.git"
-REF="${1:-feature/hosted-service-v0.1}"
+[[ ${EUID} -eq 0 ]] || { echo 'Run as root.' >&2; exit 2; }
+[[ "${1:-}" == "--expected-commit" && -n "${2:-}" ]] || { echo 'usage: install.sh --expected-commit <40-char-sha>' >&2; exit 2; }
+EXPECTED="${2,,}"
+[[ "$EXPECTED" =~ ^[0-9a-f]{40}$ ]] || { echo 'exact 40-character commit required' >&2; exit 2; }
+
+SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+HEAD="$(git -C "$SRC" rev-parse HEAD)"
+[[ "$HEAD" == "$EXPECTED" ]] || { echo 'source commit does not match authorized commit' >&2; exit 3; }
+[[ -z "$(git -C "$SRC" status --porcelain --untracked-files=all)" ]] || { echo 'source checkout is not clean' >&2; exit 3; }
+
 BASE=/opt/agent-replay
+RELEASE="$BASE/releases/$EXPECTED"
+id -u agentreplay >/dev/null 2>&1 || useradd --system --home /var/lib/agent-replay --shell /usr/sbin/nologin agentreplay
+install -d -o root -g root -m 0755 "$BASE" "$BASE/releases" /etc/agent-replay
+install -d -o agentreplay -g agentreplay -m 0750 /var/lib/agent-replay /run/agent-replay
 
-sudo id -u agentreplay >/dev/null 2>&1 || sudo useradd --system --home /var/lib/agent-replay --shell /usr/sbin/nologin agentreplay
-sudo install -d -o agentreplay -g agentreplay /var/lib/agent-replay /run/agent-replay
-sudo install -d -o root -g root /etc/agent-replay "$BASE"
-
-if [ ! -d "$BASE/repo/.git" ]; then
-  sudo git clone "$REPO_URL" "$BASE/repo"
+if [[ ! -d "$RELEASE" ]]; then
+  TMP="${RELEASE}.tmp.$$"
+  install -d -o root -g root -m 0755 "$TMP"
+  git -C "$SRC" archive --format=tar HEAD | tar -xf - -C "$TMP"
+  python3 -m venv "$TMP/.venv"
+  "$TMP/.venv/bin/python" -m pip install -q --upgrade pip
+  "$TMP/.venv/bin/python" -m pip install -q -e "$TMP[dev]" -e "$TMP/service[dev]"
+  PYTHONPATH="$TMP/src:$TMP/service" "$TMP/.venv/bin/python" -m pytest -q "$TMP/tests" "$TMP/service/tests"
+  mv "$TMP" "$RELEASE"
 fi
-sudo git -C "$BASE/repo" fetch --prune origin
-sudo git -C "$BASE/repo" checkout --force "$REF"
-sudo git -C "$BASE/repo" reset --hard "origin/$REF" 2>/dev/null || true
-sudo ln -sfn "$BASE/repo" "$BASE/current"
 
-if [ ! -x "$BASE/venv/bin/python" ]; then
-  sudo python3 -m venv "$BASE/venv"
+cp "$RELEASE/deploy/agent-replay/agent-replay.service" /etc/systemd/system/agent-replay.service
+if [[ ! -f /etc/agent-replay/service.env ]]; then
+  cp "$RELEASE/deploy/agent-replay/service.env.example" /etc/agent-replay/service.env
+  chmod 0600 /etc/agent-replay/service.env
 fi
-sudo "$BASE/venv/bin/python" -m pip install --upgrade pip
-sudo "$BASE/venv/bin/python" -m pip install -e "$BASE/current" -e "$BASE/current/service[dev]"
-
-sudo cp "$BASE/current/deploy/agent-replay/agent-replay.service" /etc/systemd/system/agent-replay.service
-if [ ! -f /etc/agent-replay/service.env ]; then
-  sudo cp "$BASE/current/deploy/agent-replay/service.env.example" /etc/agent-replay/service.env
-  echo "Edit /etc/agent-replay/service.env before starting the service." >&2
-fi
-sudo systemctl daemon-reload
-
-echo "Installed $REF. Run the test suite before systemctl enable --now agent-replay."
+ln -sfn "$RELEASE" "$BASE/current.next"
+mv -Tf "$BASE/current.next" "$BASE/current"
+systemctl daemon-reload
+printf 'STAGED %s\n' "$EXPECTED"
