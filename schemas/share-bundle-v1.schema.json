@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-replay.dev/schemas/share-bundle-v1.schema.json",
+  "title": "Agent Replay Share Bundle v1",
+  "type": "object",
+  "required": ["schema", "agent_replay_commit", "incident", "radial_review", "sharing_policy", "bundle_sha256"],
+  "properties": {
+    "schema": {"const": "agent-replay.share-bundle.v1"},
+    "agent_replay_commit": {"type": ["string", "null"]},
+    "incident": {"$ref": "public-share-v1.schema.json"},
+    "radial_review": {"anyOf": [{"type": "null"}, {"$ref": "public-radial-review-v1.schema.json"}]},
+    "sharing_policy": {
+      "type": "object",
+      "required": ["allowlist_export", "raw_source_included", "raw_evidence_included", "proprietary_engine_details_included", "absolute_paths_included", "assertion_values_included", "sensitive_values_expected"],
+      "properties": {
+        "allowlist_export": {"const": true},
+        "raw_source_included": {"const": false},
+        "raw_evidence_included": {"const": false},
+        "proprietary_engine_details_included": {"const": false},
+        "absolute_paths_included": {"const": false},
+        "assertion_values_included": {"type": "boolean"},
+        "sensitive_values_expected": {"const": false}
+      }
+    },
+    "bundle_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}
