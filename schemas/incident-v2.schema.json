@@ -5,7 +5,7 @@
   "type": "object",
   "required": [
     "schema", "input_sha256", "canonical_sha256", "event_count",
-    "expectation_coverage", "expectation_scope", "timeline",
+    "expectation_coverage", "expectation_scope", "boundary_evidence", "timeline",
     "first_provable_divergence", "divergences", "causal_chain",
     "attribution", "attribution_scope", "confidence", "confidence_scope",
     "evidence_gaps", "evidence_completeness", "evidence_completeness_scope",
@@ -20,6 +20,7 @@
     "event_count": {"type": "integer", "minimum": 0},
     "expectation_coverage": {"$ref": "#/$defs/expectationCoverage"},
     "expectation_scope": {"type": "string", "minLength": 1},
+    "boundary_evidence": {"$ref": "#/$defs/boundaryEvidence"},
     "timeline": {"type": "array", "items": {"$ref": "#/$defs/timelineEvent"}},
     "first_provable_divergence": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/divergence"}]},
     "divergences": {"type": "array", "items": {"$ref": "#/$defs/divergence"}},
@@ -103,6 +104,21 @@
         "type": {"enum": ["UNASSESSED_EVENT", "MISSING_CAUSAL_LINK"]},
         "event_id": {"type": "string"}, "kind": {"type": "string"}, "actor": {"type": "string"},
         "basis": {"type": "string"}, "effect": {"type": "string"}
+      }
+    },
+    "boundaryEvidence": {
+      "type": "object",
+      "required": [
+        "schema", "trust_store_configured", "authenticated_expectation_events",
+        "verified_revocation_receipts", "events", "claim_scope"
+      ],
+      "properties": {
+        "schema": {"const": "agent-replay.boundary-evidence.v1"},
+        "trust_store_configured": {"type": "boolean"},
+        "authenticated_expectation_events": {"type": "integer", "minimum": 0},
+        "verified_revocation_receipts": {"type": "integer", "minimum": 0},
+        "events": {"type": "array", "items": {"type": "object"}},
+        "claim_scope": {"type": "string", "minLength": 1}
       }
     },
     "traceEvidence": {
