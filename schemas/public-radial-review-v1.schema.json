@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-replay.dev/schemas/public-radial-review-v1.schema.json",
+  "title": "Agent Replay Public Radial Review v1",
+  "type": "object",
+  "required": ["schema", "authoritative", "disposition", "examined_nodes", "examined_edges", "candidate_count", "candidate_class_count", "redaction"],
+  "properties": {
+    "schema": {"const": "agent-replay.public-radial-review.v1"},
+    "engine_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+    "authoritative": {"const": false},
+    "disposition": {"enum": ["CANDIDATE_FINDINGS", "NO_CANDIDATES", null]},
+    "examined_nodes": {"type": ["integer", "null"], "minimum": 0},
+    "examined_edges": {"type": ["integer", "null"], "minimum": 0},
+    "candidate_count": {"type": "integer", "minimum": 0},
+    "candidate_class_count": {"type": "integer", "minimum": 0},
+    "mapping_provenance": {
+      "type": ["object", "null"],
+      "properties": {
+        "EXPLICIT": {"type": "integer", "minimum": 0},
+        "INFERRED": {"type": "integer", "minimum": 0},
+        "DEFAULT": {"type": "integer", "minimum": 0}
+      }
+    },
+    "redaction": {"type": "object"}
+  }
+}

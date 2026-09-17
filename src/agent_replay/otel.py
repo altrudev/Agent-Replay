@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from .normalize import DEFAULT_MAX_BYTES, DEFAULT_MAX_EVENTS
+
 
 class OpenTelemetryFormatError(ValueError):
     pass
@@ -103,17 +105,9 @@ def _split_expected_observed(
 def _radial_hints(attrs: dict[str, Any]) -> dict[str, Any]:
     prefix = "agent.replay.radial."
     allowed = {
-        "authority",
-        "mutable",
-        "representation",
-        "consequence",
-        "reversible",
-        "time_gap",
-        "independently_mutable",
-        "shared_atomic_boundary",
-        "freshness_bound",
-        "context_bound",
-        "relation",
+        "authority", "mutable", "representation", "consequence", "reversible",
+        "time_gap", "independently_mutable", "shared_atomic_boundary",
+        "freshness_bound", "context_bound", "relation", "observable",
     }
     out: dict[str, Any] = {}
     for key, value in attrs.items():
@@ -125,15 +119,8 @@ def _radial_hints(attrs: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def _resource_actor(
-    resource_attrs: dict[str, Any],
-    span_attrs: dict[str, Any],
-) -> str:
-    for key in (
-        "agent.name",
-        "gen_ai.agent.name",
-        "service.name",
-    ):
+def _resource_actor(resource_attrs: dict[str, Any], span_attrs: dict[str, Any]) -> str:
+    for key in ("agent.name", "gen_ai.agent.name", "service.name"):
         value = span_attrs.get(key)
         if isinstance(value, str) and value:
             return value
@@ -147,11 +134,9 @@ def _scope_blocks(resource_block: dict[str, Any]) -> list[dict[str, Any]]:
     current = resource_block.get("scopeSpans")
     if isinstance(current, list):
         return [item for item in current if isinstance(item, dict)]
-
     legacy = resource_block.get("instrumentationLibrarySpans")
     if isinstance(legacy, list):
         return [item for item in legacy if isinstance(item, dict)]
-
     return []
 
 
@@ -161,7 +146,6 @@ def _scope_metadata(scope_block: dict[str, Any]) -> dict[str, str]:
         scope = scope_block.get("instrumentationLibrary")
     if not isinstance(scope, dict):
         return {}
-
     out: dict[str, str] = {}
     if isinstance(scope.get("name"), str):
         out["scope_name"] = scope["name"]
@@ -176,12 +160,12 @@ def _event_id(trace_id: str, span_id: str) -> str:
 
 def _flatten_otlp(
     payload: dict[str, Any],
+    *,
+    max_events: int,
 ) -> list[tuple[dict[str, Any], dict[str, Any], dict[str, str]]]:
     resource_spans = payload.get("resourceSpans")
     if not isinstance(resource_spans, list):
-        raise OpenTelemetryFormatError(
-            "OTLP JSON must contain resourceSpans[]"
-        )
+        raise OpenTelemetryFormatError("OTLP JSON must contain resourceSpans[]")
 
     flattened: list[tuple[dict[str, Any], dict[str, Any], dict[str, str]]] = []
     seen: set[tuple[str, str]] = set()
@@ -190,28 +174,25 @@ def _flatten_otlp(
         if not isinstance(resource_block, dict):
             continue
         resource = resource_block.get("resource") or {}
-        resource_attrs = (
-            _attributes(resource.get("attributes"))
-            if isinstance(resource, dict)
-            else {}
-        )
-
+        resource_attrs = _attributes(resource.get("attributes")) if isinstance(resource, dict) else {}
         for scope_block in _scope_blocks(resource_block):
             spans = scope_block.get("spans")
             if not isinstance(spans, list):
                 continue
             scope_meta = _scope_metadata(scope_block)
-
             for span in spans:
                 if not isinstance(span, dict):
                     continue
+                if len(flattened) >= max_events:
+                    raise OpenTelemetryFormatError(
+                        f"OTLP span count exceeds max_events={max_events}"
+                    )
                 trace_id = span.get("traceId")
                 span_id = span.get("spanId")
                 if not isinstance(trace_id, str) or not trace_id:
                     raise OpenTelemetryFormatError("traceId is required")
                 if not isinstance(span_id, str) or not span_id:
                     raise OpenTelemetryFormatError("spanId is required")
-
                 identity = (trace_id, span_id)
                 if identity in seen:
                     raise OpenTelemetryFormatError(
@@ -222,18 +203,15 @@ def _flatten_otlp(
 
     if not flattened:
         raise OpenTelemetryFormatError("OTLP JSON contained no spans")
-
     return flattened
 
 
 def otlp_json_to_events(
-    payload: dict[str, Any],
-    *,
-    trace_id: str | None = None,
+    payload: dict[str, Any], *, trace_id: str | None = None,
+    max_events: int = DEFAULT_MAX_EVENTS,
 ) -> list[dict[str, Any]]:
-    flattened = _flatten_otlp(payload)
+    flattened = _flatten_otlp(payload, max_events=max_events)
     trace_ids = sorted({span["traceId"] for span, _, _ in flattened})
-
     if trace_id is None:
         if len(trace_ids) > 1:
             raise OpenTelemetryFormatError(
@@ -243,19 +221,10 @@ def otlp_json_to_events(
     else:
         selected_trace_id = trace_id
         if selected_trace_id not in trace_ids:
-            raise OpenTelemetryFormatError(
-                f"requested trace_id not found: {selected_trace_id}"
-            )
+            raise OpenTelemetryFormatError(f"requested trace_id not found: {selected_trace_id}")
 
-    selected = [
-        item for item in flattened
-        if item[0]["traceId"] == selected_trace_id
-    ]
-    available = {
-        (span["traceId"], span["spanId"])
-        for span, _, _ in selected
-    }
-
+    selected = [item for item in flattened if item[0]["traceId"] == selected_trace_id]
+    available = {(span["traceId"], span["spanId"]) for span, _, _ in selected}
     events: list[dict[str, Any]] = []
 
     for span, resource_attrs, scope_meta in selected:
@@ -263,11 +232,9 @@ def otlp_json_to_events(
         span_id = span["spanId"]
         span_attrs = _attributes(span.get("attributes"))
         expected, observed = _split_expected_observed(span_attrs)
-
         raw_start = span.get("startTimeUnixNano")
         parent_span_id = span.get("parentSpanId")
         parent_ids: list[str] = []
-
         evidence: dict[str, Any] = {
             "source": "opentelemetry",
             "trace_id": current_trace_id,
@@ -275,16 +242,13 @@ def otlp_json_to_events(
             "otel_start_time_unix_nano": str(raw_start),
         }
         evidence.update(scope_meta)
-
         radial = _radial_hints(span_attrs)
         if radial:
             evidence["radial"] = radial
 
         causal_parent = span_attrs.get("agent.replay.causal_parent", False)
         if not isinstance(causal_parent, bool):
-            raise OpenTelemetryFormatError(
-                "agent.replay.causal_parent must be a boolean"
-            )
+            raise OpenTelemetryFormatError("agent.replay.causal_parent must be a boolean")
 
         if isinstance(parent_span_id, str) and parent_span_id:
             evidence["otel_parent_span_id"] = parent_span_id
@@ -300,11 +264,7 @@ def otlp_json_to_events(
 
         name = span.get("name")
         kind_override = span_attrs.get("agent.replay.kind")
-        kind = (
-            kind_override
-            if isinstance(kind_override, str) and kind_override
-            else name
-        )
+        kind = kind_override if isinstance(kind_override, str) and kind_override else name
         if not isinstance(kind, str) or not kind:
             kind = "otel.span"
 
@@ -315,52 +275,50 @@ def otlp_json_to_events(
             if isinstance(status.get("message"), str):
                 evidence["otel_status_message"] = status["message"]
 
-        events.append(
-            {
-                "event_id": _event_id(current_trace_id, span_id),
-                "timestamp": _timestamp_from_unix_nano(raw_start),
-                "actor": _resource_actor(resource_attrs, span_attrs),
-                "kind": kind,
-                "parent_ids": parent_ids,
-                "observed": observed,
-                "expected": expected,
-                "evidence": evidence,
-            }
-        )
-
+        events.append({
+            "event_id": _event_id(current_trace_id, span_id),
+            "timestamp": _timestamp_from_unix_nano(raw_start),
+            "actor": _resource_actor(resource_attrs, span_attrs),
+            "kind": kind,
+            "parent_ids": parent_ids,
+            "observed": observed,
+            "expected": expected,
+            "evidence": evidence,
+        })
     return events
 
 
 def load_otlp_json(
-    path: str | Path,
-    *,
-    trace_id: str | None = None,
+    path: str | Path, *, trace_id: str | None = None,
+    max_bytes: int = DEFAULT_MAX_BYTES,
+    max_events: int = DEFAULT_MAX_EVENTS,
 ) -> list[dict[str, Any]]:
     source = Path(path)
-    try:
-        payload = json.loads(source.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+    raw = source.read_bytes()
+    if len(raw) > max_bytes:
         raise OpenTelemetryFormatError(
-            f"invalid OTLP JSON: {exc.msg}"
-        ) from exc
+            f"input size {len(raw)} exceeds max_bytes={max_bytes}"
+        )
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise OpenTelemetryFormatError(f"invalid OTLP JSON: {exc}") from exc
     if not isinstance(payload, dict):
         raise OpenTelemetryFormatError("OTLP JSON root must be an object")
-    return otlp_json_to_events(payload, trace_id=trace_id)
+    return otlp_json_to_events(payload, trace_id=trace_id, max_events=max_events)
 
 
 def write_canonical_jsonl(
-    input_path: str | Path,
-    output_path: str | Path,
-    *,
-    trace_id: str | None = None,
+    input_path: str | Path, output_path: str | Path, *, trace_id: str | None = None,
+    max_bytes: int = DEFAULT_MAX_BYTES,
+    max_events: int = DEFAULT_MAX_EVENTS,
 ) -> Path:
-    events = load_otlp_json(input_path, trace_id=trace_id)
+    events = load_otlp_json(
+        input_path, trace_id=trace_id, max_bytes=max_bytes, max_events=max_events
+    )
     target = Path(output_path)
     target.write_text(
-        "".join(
-            json.dumps(event, sort_keys=True, ensure_ascii=False) + "\n"
-            for event in events
-        ),
+        "".join(json.dumps(event, sort_keys=True, ensure_ascii=False) + "\n" for event in events),
         encoding="utf-8",
     )
     return target

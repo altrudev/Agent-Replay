@@ -2,6 +2,29 @@
 
 All notable changes to Agent Replay are documented here.
 
+## 0.5.0
+
+Security, determinism, usability, and scale hardening without changing the Evidence Contract 1.0 input model.
+
+### Added
+
+- `agent-replay reproduce` for deterministic replay comparison.
+- `agent-replay doctor` for core/TRACE/DDC readiness checks.
+- Input resource limits for bytes, events, parent fan-in, and causal depth.
+- Public JSON Schemas for sanitized incidents, sanitized Radial reviews, and share bundles.
+- Deterministic benchmark harness for 1k/10k/100k-event reconstruction measurements.
+- Explicit provenance accounting for DDC Radial mappings (`EXPLICIT`, `INFERRED`, `DEFAULT`).
+
+### Changed
+
+- OTLP reconstruction now normalizes directly in memory instead of writing and re-reading a temporary JSONL file.
+- Divergent ancestry is computed once in topological order instead of traversing the graph independently for every divergence.
+- CLI input format defaults to auto-detection and supports output files, controlled error messages, `--debug`, and `--version`.
+- Incident schema now formally covers evidence gaps, evidence completeness, scoped TRACE evidence, and reproducibility states.
+- Public share bundles redact assertion values by default; scalar values require explicit `--include-values` opt-in and still pass the fail-closed sensitive-data scan.
+- DDC Radial defaults and naming-based dimension heuristics are exposed as provenance rather than silently appearing equivalent to supplied evidence.
+- Isolated test runners explicitly add the repository `src/` layout, improving reproducibility under bounded DSR execution.
+
 ## 0.4.3
 
 Reproducibility repair for the TRACE marketplace integration.

@@ -36,41 +36,28 @@ def _collect_aliases(incident: dict[str, Any]) -> tuple[dict[str, str], dict[str
     event_ids: list[str] = []
     kinds: list[str] = []
     fields: list[str] = []
-
     for collection in ("timeline", "divergences", "causal_chain", "attribution", "evidence_gaps"):
         for item in incident.get(collection) or []:
             if not isinstance(item, dict):
                 continue
-            actor = item.get("actor")
-            if isinstance(actor, str):
-                actors.append(actor)
-            event_id = item.get("event_id")
-            if isinstance(event_id, str):
-                event_ids.append(event_id)
-            kind = item.get("kind")
-            if isinstance(kind, str):
-                kinds.append(kind)
-            for event_id_value in item.get("event_ids") or []:
-                if isinstance(event_id_value, str):
-                    event_ids.append(event_id_value)
-            for parent in item.get("parent_ids") or item.get("direct_parent_ids") or []:
-                if isinstance(parent, str):
-                    event_ids.append(parent)
-            for ancestor in item.get("divergent_ancestor_ids") or []:
-                if isinstance(ancestor, str):
-                    event_ids.append(ancestor)
+            for key, target in (("actor", actors), ("event_id", event_ids), ("kind", kinds)):
+                value = item.get(key)
+                if isinstance(value, str):
+                    target.append(value)
+            for key in ("event_ids", "parent_ids", "direct_parent_ids", "divergent_ancestor_ids"):
+                for value in item.get(key) or []:
+                    if isinstance(value, str):
+                        event_ids.append(value)
             for mismatch in item.get("mismatches") or []:
                 if isinstance(mismatch, dict) and isinstance(mismatch.get("field"), str):
                     fields.append(mismatch["field"])
 
     first = incident.get("first_provable_divergence")
     if isinstance(first, dict):
-        if isinstance(first.get("actor"), str):
-            actors.append(first["actor"])
-        if isinstance(first.get("event_id"), str):
-            event_ids.append(first["event_id"])
-        if isinstance(first.get("kind"), str):
-            kinds.append(first["kind"])
+        for key, target in (("actor", actors), ("event_id", event_ids), ("kind", kinds)):
+            value = first.get(key)
+            if isinstance(value, str):
+                target.append(value)
         for parent in first.get("parent_ids") or []:
             if isinstance(parent, str):
                 event_ids.append(parent)
@@ -92,17 +79,42 @@ def _safe_scalar(value: Any) -> Any:
     return "[REDACTED_COMPLEX_VALUE]"
 
 
-def _safe_mismatches(items: Any, field_aliases: dict[str, str]) -> list[dict[str, Any]]:
+def _value_type(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, int) and not isinstance(value, bool):
+        return "integer"
+    if isinstance(value, float):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    return type(value).__name__
+
+
+def _safe_mismatches(items: Any, field_aliases: dict[str, str], *, include_values: bool) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for item in items or []:
         if not isinstance(item, dict):
             continue
         field = str(item.get("field", ""))
-        out.append({
+        expected = item.get("expected")
+        observed = item.get("observed")
+        row: dict[str, Any] = {
             "assertion": field_aliases.get(field, "assertion-unknown"),
-            "expected": _safe_scalar(item.get("expected")),
-            "observed": _safe_scalar(item.get("observed")),
-        })
+            "expected_type": _value_type(expected),
+            "observed_type": _value_type(observed),
+            "changed": expected != observed,
+        }
+        if include_values:
+            row["expected"] = _safe_scalar(expected)
+            row["observed"] = _safe_scalar(observed)
+        out.append(row)
     return out
 
 
@@ -110,72 +122,39 @@ def _alias_list(values: Any, aliases: dict[str, str]) -> list[str]:
     return [aliases.get(str(value), "event-unknown") for value in values or []]
 
 
-def _safe_event(
-    item: dict[str, Any],
-    actor_aliases: dict[str, str],
-    event_aliases: dict[str, str],
-    kind_aliases: dict[str, str],
-    field_aliases: dict[str, str],
-    *,
-    include_status: bool = True,
-) -> dict[str, Any]:
+def _safe_event(item: dict[str, Any], actor_aliases: dict[str, str], event_aliases: dict[str, str], kind_aliases: dict[str, str], field_aliases: dict[str, str], *, include_values: bool, include_status: bool = True) -> dict[str, Any]:
     out: dict[str, Any] = {
         "event": event_aliases.get(str(item.get("event_id", "")), "event-unknown"),
         "kind": kind_aliases.get(str(item.get("kind", "")), "kind-unknown"),
         "actor": actor_aliases.get(str(item.get("actor", "")), "actor-unknown"),
         "parents": _alias_list(item.get("parent_ids"), event_aliases),
-        "mismatches": _safe_mismatches(item.get("mismatches"), field_aliases),
+        "mismatches": _safe_mismatches(item.get("mismatches"), field_aliases, include_values=include_values),
     }
     if include_status and "status" in item:
         out["status"] = str(item.get("status"))
     return out
 
 
-def sanitize_incident(incident: dict[str, Any]) -> dict[str, Any]:
+def sanitize_incident(incident: dict[str, Any], *, include_values: bool = False) -> dict[str, Any]:
     actor_aliases, event_aliases, kind_aliases, field_aliases = _collect_aliases(incident)
     first = incident.get("first_provable_divergence")
-    safe_first = (
-        _safe_event(
-            first,
-            actor_aliases,
-            event_aliases,
-            kind_aliases,
-            field_aliases,
-            include_status=False,
-        )
-        if isinstance(first, dict)
-        else None
-    )
-
+    safe_first = _safe_event(first, actor_aliases, event_aliases, kind_aliases, field_aliases, include_values=include_values, include_status=False) if isinstance(first, dict) else None
     coverage = incident.get("expectation_coverage")
-    if isinstance(coverage, dict):
-        safe_coverage = {
-            "status": coverage.get("status"),
-            "events_with_expectations": coverage.get("events_with_expectations"),
-            "total_events": coverage.get("total_events"),
-            "ratio": coverage.get("ratio"),
-        }
-    else:
-        safe_coverage = None
+    safe_coverage = ({
+        "status": coverage.get("status"),
+        "events_with_expectations": coverage.get("events_with_expectations"),
+        "total_events": coverage.get("total_events"),
+        "ratio": coverage.get("ratio"),
+    } if isinstance(coverage, dict) else None)
 
-    gaps: list[dict[str, Any]] = []
-    for item in incident.get("evidence_gaps") or []:
-        if not isinstance(item, dict):
-            continue
-        gaps.append({
-            "type": item.get("type"),
-            "event": event_aliases.get(str(item.get("event_id", "")), "event-unknown"),
-        })
-
-    attribution: list[dict[str, Any]] = []
-    for item in incident.get("attribution") or []:
-        if not isinstance(item, dict):
-            continue
-        attribution.append({
-            "actor": actor_aliases.get(str(item.get("actor", "")), "actor-unknown"),
-            "role": item.get("role"),
-            "events": _alias_list(item.get("event_ids"), event_aliases),
-        })
+    gaps = [
+        {"type": item.get("type"), "event": event_aliases.get(str(item.get("event_id", "")), "event-unknown")}
+        for item in incident.get("evidence_gaps") or [] if isinstance(item, dict)
+    ]
+    attribution = [
+        {"actor": actor_aliases.get(str(item.get("actor", "")), "actor-unknown"), "role": item.get("role"), "events": _alias_list(item.get("event_ids"), event_aliases)}
+        for item in incident.get("attribution") or [] if isinstance(item, dict)
+    ]
 
     return {
         "schema": "agent-replay.public-share.v1",
@@ -187,54 +166,26 @@ def sanitize_incident(incident: dict[str, Any]) -> dict[str, Any]:
         "reconstruction_status": incident.get("reconstruction_status"),
         "evidence_completeness": incident.get("evidence_completeness"),
         "confidence": incident.get("confidence"),
-        "timeline": [
-            _safe_event(item, actor_aliases, event_aliases, kind_aliases, field_aliases)
-            for item in incident.get("timeline") or []
-            if isinstance(item, dict)
-        ],
+        "timeline": [_safe_event(item, actor_aliases, event_aliases, kind_aliases, field_aliases, include_values=include_values) for item in incident.get("timeline") or [] if isinstance(item, dict)],
         "first_provable_divergence": safe_first,
-        "divergences": [
-            _safe_event(
-                item,
-                actor_aliases,
-                event_aliases,
-                kind_aliases,
-                field_aliases,
-                include_status=False,
-            )
-            for item in incident.get("divergences") or []
-            if isinstance(item, dict)
-        ],
-        "causal_chain": [
-            {
-                "event": event_aliases.get(str(item.get("event_id", "")), "event-unknown"),
-                "kind": kind_aliases.get(str(item.get("kind", "")), "kind-unknown"),
-                "actor": actor_aliases.get(str(item.get("actor", "")), "actor-unknown"),
-                "relationship": item.get("relationship"),
-                "direct_parents": _alias_list(item.get("direct_parent_ids"), event_aliases),
-                "divergent_ancestors": _alias_list(item.get("divergent_ancestor_ids"), event_aliases),
-            }
-            for item in incident.get("causal_chain") or []
-            if isinstance(item, dict)
-        ],
+        "divergences": [_safe_event(item, actor_aliases, event_aliases, kind_aliases, field_aliases, include_values=include_values, include_status=False) for item in incident.get("divergences") or [] if isinstance(item, dict)],
+        "causal_chain": [{
+            "event": event_aliases.get(str(item.get("event_id", "")), "event-unknown"),
+            "kind": kind_aliases.get(str(item.get("kind", "")), "kind-unknown"),
+            "actor": actor_aliases.get(str(item.get("actor", "")), "actor-unknown"),
+            "relationship": item.get("relationship"),
+            "direct_parents": _alias_list(item.get("direct_parent_ids"), event_aliases),
+            "divergent_ancestors": _alias_list(item.get("divergent_ancestor_ids"), event_aliases),
+        } for item in incident.get("causal_chain") or [] if isinstance(item, dict)],
         "attribution": attribution,
         "evidence_gaps": gaps,
-        "scope": {
-            "expectations": "CALLER_SUPPLIED_ASSERTIONS",
-            "attribution": "EVIDENCE_LABELS_ONLY",
-            "confidence": "STRUCTURAL_ONLY",
-            "completeness": "STRUCTURAL_ONLY",
-        },
+        "scope": {"expectations": "CALLER_SUPPLIED_ASSERTIONS", "attribution": "EVIDENCE_LABELS_ONLY", "confidence": "STRUCTURAL_ONLY", "completeness": "STRUCTURAL_ONLY"},
         "redaction": {
-            "actors_pseudonymized": True,
-            "event_ids_pseudonymized": True,
-            "event_kinds_pseudonymized": True,
-            "assertion_fields_pseudonymized": True,
-            "timestamps_omitted": True,
-            "raw_evidence_omitted": True,
-            "free_text_basis_omitted": True,
-            "trace_evidence_omitted": True,
-            "infrastructure_metadata_omitted": True,
+            "actors_pseudonymized": True, "event_ids_pseudonymized": True,
+            "event_kinds_pseudonymized": True, "assertion_fields_pseudonymized": True,
+            "assertion_values_included": include_values, "timestamps_omitted": True,
+            "raw_evidence_omitted": True, "free_text_basis_omitted": True,
+            "trace_evidence_omitted": True, "infrastructure_metadata_omitted": True,
         },
     }
 
@@ -242,11 +193,7 @@ def sanitize_incident(incident: dict[str, Any]) -> dict[str, Any]:
 def sanitize_radial(review: dict[str, Any]) -> dict[str, Any]:
     source = review.get("engine_source") if isinstance(review.get("engine_source"), dict) else {}
     hypotheses = [item for item in review.get("hypotheses") or [] if isinstance(item, dict)]
-    prior_classes = {
-        str(item.get("prior_id"))
-        for item in hypotheses
-        if item.get("prior_id") is not None
-    }
+    prior_classes = {str(item.get("prior_id")) for item in hypotheses if item.get("prior_id") is not None}
     return {
         "schema": "agent-replay.public-radial-review.v1",
         "engine_sha256": source.get("sha256") or review.get("engine_sha256"),
@@ -256,18 +203,13 @@ def sanitize_radial(review: dict[str, Any]) -> dict[str, Any]:
         "examined_edges": review.get("examined_edges"),
         "candidate_count": len(hypotheses),
         "candidate_class_count": len(prior_classes),
+        "mapping_provenance": review.get("mapping_provenance"),
         "redaction": {
-            "engine_name_omitted": True,
-            "engine_path_omitted": True,
-            "prior_ids_omitted": True,
-            "prior_titles_omitted": True,
-            "subjects_omitted": True,
-            "rationale_omitted": True,
-            "falsification_templates_omitted": True,
-            "feature_vectors_omitted": True,
-            "scores_omitted": True,
-            "thresholds_omitted": True,
-            "source_code_omitted": True,
+            "engine_name_omitted": True, "engine_path_omitted": True,
+            "prior_ids_omitted": True, "prior_titles_omitted": True,
+            "subjects_omitted": True, "rationale_omitted": True,
+            "falsification_templates_omitted": True, "feature_vectors_omitted": True,
+            "scores_omitted": True, "thresholds_omitted": True, "source_code_omitted": True,
         },
     }
 
@@ -280,13 +222,8 @@ def _fail_if_sensitive(value: Any) -> None:
             raise ValueError(f"share bundle failed sensitive-data scan: {match.group(0)[:80]}")
 
 
-def build_share_bundle(
-    incident: dict[str, Any],
-    radial: dict[str, Any] | None = None,
-    *,
-    agent_replay_commit: str | None = None,
-) -> dict[str, Any]:
-    public_incident = sanitize_incident(incident)
+def build_share_bundle(incident: dict[str, Any], radial: dict[str, Any] | None = None, *, agent_replay_commit: str | None = None, include_values: bool = False) -> dict[str, Any]:
+    public_incident = sanitize_incident(incident, include_values=include_values)
     public_radial = sanitize_radial(radial) if radial is not None else None
     bundle: dict[str, Any] = {
         "schema": "agent-replay.share-bundle.v1",
@@ -294,38 +231,21 @@ def build_share_bundle(
         "incident": public_incident,
         "radial_review": public_radial,
         "sharing_policy": {
-            "allowlist_export": True,
-            "raw_source_included": False,
-            "raw_evidence_included": False,
-            "proprietary_engine_details_included": False,
-            "absolute_paths_included": False,
+            "allowlist_export": True, "raw_source_included": False,
+            "raw_evidence_included": False, "proprietary_engine_details_included": False,
+            "absolute_paths_included": False, "assertion_values_included": include_values,
             "sensitive_values_expected": False,
         },
     }
     _fail_if_sensitive(bundle)
-    unsigned = _json_bytes(bundle)
-    bundle["bundle_sha256"] = _sha256_bytes(unsigned)
+    bundle["bundle_sha256"] = _sha256_bytes(_json_bytes(bundle))
     return bundle
 
 
-def write_share_bundle(
-    incident_path: str | Path,
-    output_path: str | Path,
-    *,
-    radial_path: str | Path | None = None,
-    agent_replay_commit: str | None = None,
-) -> Path:
+def write_share_bundle(incident_path: str | Path, output_path: str | Path, *, radial_path: str | Path | None = None, agent_replay_commit: str | None = None, include_values: bool = False) -> Path:
     incident = json.loads(Path(incident_path).read_text(encoding="utf-8"))
-    radial = (
-        json.loads(Path(radial_path).read_text(encoding="utf-8"))
-        if radial_path is not None
-        else None
-    )
-    bundle = build_share_bundle(
-        incident,
-        radial,
-        agent_replay_commit=agent_replay_commit,
-    )
+    radial = json.loads(Path(radial_path).read_text(encoding="utf-8")) if radial_path is not None else None
+    bundle = build_share_bundle(incident, radial, agent_replay_commit=agent_replay_commit, include_values=include_values)
     target = Path(output_path)
     target.write_text(json.dumps(bundle, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return target

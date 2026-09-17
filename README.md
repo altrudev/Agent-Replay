@@ -8,14 +8,107 @@ Agent Replay answers a narrow forensic question:
 
 It is **not** an observability platform, agent runtime, policy engine, or monitoring service.
 
-Current hardening line: **v0.4.3**.
+Current hardening line: **v0.5.0**.
 
 - See [CHANGELOG.md](CHANGELOG.md) for release history.
 - See [SECURITY.md](SECURITY.md) before processing sensitive or untrusted evidence.
 
+## v0.5 — hardened replay and safer evidence handling
+
+v0.5 keeps the standalone, zero-runtime-dependency core while tightening the places where forensic tools most often become ambiguous or unsafe.
+
+### Easier first use
+
+Input format is now auto-detected from normal file extensions:
+
+```bash
+agent-replay reconstruct examples/refund-750/events.jsonl
+agent-replay reconstruct examples/refund-750/otel.json
+```
+
+`--format jsonl` and `--format otel` remain available when an explicit override is preferable.
+
+Useful operator commands:
+
+```bash
+agent-replay --version
+agent-replay doctor
+agent-replay reconstruct evidence.jsonl --json -o incident.json
+```
+
+Normal errors are concise. Use `--debug` when a traceback is needed.
+
+### Bounded evidence processing
+
+Untrusted or accidentally huge evidence is bounded by default:
+
+```text
+max bytes    32 MiB
+max events   100,000
+max parents  64 per event
+max depth    4,096
+```
+
+The reconstruction command exposes `--max-bytes`, `--max-events`, `--max-parents`, and `--max-depth` when a reviewed workload requires different limits.
+
+### Direct OTLP reconstruction
+
+OTLP input is normalized directly into canonical events and reconstructed in memory. Agent Replay no longer writes a temporary canonical JSONL file and then re-opens it merely to reconstruct an OTLP incident.
+
+Explicit JSONL export remains available when a canonical artifact is actually wanted:
+
+```bash
+agent-replay ingest otel examples/refund-750/otel.json -o canonical.jsonl
+```
+
+### Reproducibility check
+
+A prior machine-readable incident can be replayed against its evidence:
+
+```bash
+agent-replay reproduce incident.json examples/refund-750/events.jsonl
+```
+
+The comparison checks the normalized evidence hash, event count, reconstruction status, first provable divergence, and causal-chain signature and returns:
+
+```text
+REPRODUCED
+DRIFTED
+```
+
+Ordinary reconstruction still reports `reproducibility = NOT_TESTED` until this check is actually run.
+
+### Safer external sharing
+
+Public share exports redact assertion values by default:
+
+```bash
+agent-replay export-share incident.json -o public-share.json
+```
+
+The recipient can still see that an assertion changed and the expected/observed value types without receiving the values themselves. Scalar values require explicit opt-in:
+
+```bash
+agent-replay export-share incident.json --include-values -o reviewed-share.json
+```
+
+Even opted-in exports still pass the fail-closed sensitive-data scan. See [docs/SECURE_SHARING.md](docs/SECURE_SHARING.md).
+
+### DDC Radial provenance
+
+The optional DDC adapter now distinguishes mapping provenance instead of making defaults look equivalent to evidence:
+
+```text
+EXPLICIT   supplied by evidence
+INFERRED   derived from bounded event-kind heuristics
+DEFAULT    adapter fallback
+```
+
+Radial remains non-authoritative. Its candidate findings do not alter Agent Replay's reconstruction.
+
 ## v0.4 — AgenTrust TRACE evidence
 
-Agent Replay can now verify a standalone TRACE v0.2 Trust Record against a caller-supplied trusted issuer key and attach the verified record summary to an incident reconstruction.
+Agent Replay can verify a standalone TRACE v0.2 Trust Record against a caller-supplied trusted issuer key and attach the verified record summary to an incident reconstruction.
 
 Install the optional adapter dependency:
 
@@ -66,16 +159,13 @@ The current adapter verifies the standalone TRACE record's schema/profile, crypt
 
 Those distinctions are preserved in the emitted verification scope rather than inferred.
 
-## v0.3 — OpenTelemetry ingestion
+## OpenTelemetry ingestion
 
 Agent Replay can reconstruct directly from OpenTelemetry OTLP JSON.
 
 ```bash
 python -m pip install -e .
-
-agent-replay reconstruct \
-  examples/refund-750/otel.json \
-  --format otel
+agent-replay reconstruct examples/refund-750/otel.json
 ```
 
 That performs:
@@ -111,10 +201,7 @@ agent-replay reconstruct canonical.jsonl
 Machine-readable output:
 
 ```bash
-agent-replay reconstruct \
-  examples/refund-750/otel.json \
-  --format otel \
-  --json
+agent-replay reconstruct examples/refund-750/otel.json --json
 ```
 
 ## OpenTelemetry evidence convention
@@ -218,7 +305,7 @@ observed=v17
 
 ## Forensic integrity
 
-Agent Replay fails closed on invalid or timezone-less timestamps, duplicate event IDs, unknown or duplicate parents, self-parenting, future-parent edges, and causal cycles.
+Agent Replay fails closed on invalid or timezone-less timestamps, duplicate event IDs, unknown or duplicate parents, self-parenting, future-parent edges, causal cycles, excessive parent fan-in, excessive causal depth, excessive event count, and evidence exceeding the configured byte limit.
 
 Timestamps are normalized to UTC before ordering. Equal-time events are topologically ordered so an evidenced parent cannot be placed after its child. Events without expected-state evidence are labeled `UNASSESSED`, not `VALID`.
 
@@ -229,7 +316,7 @@ input_sha256
 canonical_sha256
 ```
 
-The first hashes the exact evidence bytes supplied by the caller, including the original OTLP JSON when `--format otel` is used. The second hashes the normalized canonical representation. When verified TRACE evidence is attached, the TRACE record and trusted key are individually hashed and a supplementary evidence-bundle hash binds those fingerprints to the incident.
+The first hashes the exact evidence bytes supplied by the caller, including the original OTLP JSON. The second hashes the normalized canonical representation. When verified TRACE evidence is attached, the TRACE record and trusted key are individually hashed and a supplementary evidence-bundle hash binds those fingerprints to the incident.
 
 ## Causality
 
@@ -269,29 +356,10 @@ export DDC_RADIAL_ROOT=/path/to/ddc
 For OTLP input:
 
 ```bash
-agent-replay-ddc review \
-  examples/refund-750/otel.json \
-  --format otel
+agent-replay-ddc review examples/refund-750/otel.json --format otel
 ```
 
-That prints the normal Agent Replay incident followed by a concise DDC Radial appendix:
-
-```text
-DDC RADIAL REVIEW
-Engine: ddc-radial-frequency/1.0
-Engine SHA-256: ...
-Candidates: ...
-
-1. Unsafe retry / duplicate effect
-   Score: ...
-   Subjects:
-     - approval.check (...)
-     - payment.refund (...)
-   Why: ...
-   Falsification: ...
-
-Note: DDC Radial findings are non-authoritative CANDIDATE hypotheses.
-```
+Machine-readable Radial output now also reports aggregate mapping provenance so downstream reviewers can see how much of the graph came from explicit evidence versus inference/defaults.
 
 Full machine-readable combined output:
 
@@ -311,10 +379,7 @@ agent-replay.ddc-review.v1
 You can still run Radial directly over incident JSON:
 
 ```bash
-agent-replay reconstruct \
-  examples/refund-750/otel.json \
-  --format otel \
-  --json \
+agent-replay reconstruct examples/refund-750/otel.json --json \
   | agent-replay-ddc-radial
 ```
 
@@ -324,30 +389,20 @@ Use `--json` on the Radial command for full feature vectors:
 ... | agent-replay-ddc-radial --json
 ```
 
-DDC Radial findings remain:
-
-```text
-authoritative = false
-disposition = CANDIDATE
-```
-
-They are structural fault hypotheses and falsification proposals, not Agent Replay findings, blame assignments, or execution authority.
+DDC Radial findings remain non-authoritative candidate hypotheses. They are structural fault hypotheses and falsification proposals, not Agent Replay findings, blame assignments, or execution authority.
 
 Deleting `adapters/ddc/` leaves Agent Replay fully functional.
 
-## Machine-readable incident contract
-
-Current incident contract:
-
-```text
-agent-replay.incident.v2
-```
-
-Schema:
+## Machine-readable contracts
 
 ```text
 schemas/incident-v2.schema.json
+schemas/public-share-v1.schema.json
+schemas/public-radial-review-v1.schema.json
+schemas/share-bundle-v1.schema.json
 ```
+
+The internal incident and externally shareable artifacts have separate schemas intentionally; sanitization is a representation boundary, not a presentation flag.
 
 ## Development
 
@@ -369,6 +424,12 @@ Optional DDC adapter:
 ```bash
 python -m pip install -e ./adapters/ddc
 pytest -q adapters/ddc/tests
+```
+
+Benchmark reconstruction on deterministic synthetic chains:
+
+```bash
+python benchmarks/benchmark_reconstruct.py --events 1000 10000 100000
 ```
 
 The DDC checkout referenced by `DDC_RADIAL_ROOT` is executable local code and must be treated as trusted.

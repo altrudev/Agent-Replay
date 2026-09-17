@@ -4,344 +4,126 @@
   "title": "Agent Replay Incident v2",
   "type": "object",
   "required": [
-    "schema",
-    "input_sha256",
-    "canonical_sha256",
-    "event_count",
-    "expectation_coverage",
-    "expectation_scope",
-    "timeline",
-    "first_provable_divergence",
-    "divergences",
-    "causal_chain",
-    "attribution",
-    "attribution_scope",
-    "confidence",
-    "confidence_scope",
-    "reproducibility",
-    "reconstruction_status"
+    "schema", "input_sha256", "canonical_sha256", "event_count",
+    "expectation_coverage", "expectation_scope", "timeline",
+    "first_provable_divergence", "divergences", "causal_chain",
+    "attribution", "attribution_scope", "confidence", "confidence_scope",
+    "evidence_gaps", "evidence_completeness", "evidence_completeness_scope",
+    "reproducibility", "reconstruction_status"
   ],
   "properties": {
-    "schema": {
-      "const": "agent-replay.incident.v2"
-    },
-    "input_sha256": {
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
-    },
-    "canonical_sha256": {
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
-    },
-    "input_format": {
-      "type": "string"
-    },
-    "event_count": {
-      "type": "integer",
-      "minimum": 0
-    },
-    "expectation_coverage": {
-      "$ref": "#/$defs/expectationCoverage"
-    },
-    "timeline": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/timelineEvent"
-      }
-    },
-    "first_provable_divergence": {
-      "anyOf": [
-        {
-          "type": "null"
-        },
-        {
-          "$ref": "#/$defs/divergence"
-        }
-      ]
-    },
-    "divergences": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/divergence"
-      }
-    },
-    "causal_chain": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/chainEvent"
-      }
-    },
-    "attribution": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/attribution"
-      }
-    },
-    "attribution_scope": {
-      "type": "string"
-    },
-    "confidence": {
-      "enum": [
-        "NONE",
-        "MEDIUM",
-        "HIGH"
-      ]
-    },
-    "reproducibility": {
-      "enum": [
-        "NOT_TESTED"
-      ]
-    },
-    "reconstruction_status": {
-      "enum": [
-        "DIVERGENCE_RECONSTRUCTED",
-        "NO_DIVERGENCE_ESTABLISHED"
-      ]
-    },
-    "expectation_scope": {
-      "type": "string"
-    },
-    "confidence_scope": {
-      "type": "string"
-    },
-    "selected_trace_id": {
-      "type": "string"
-    },
-    "supplementary_evidence_bundle_sha256": {
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
-    },
-    "trace_evidence": {
-      "type": "object"
-    }
+    "schema": {"const": "agent-replay.incident.v2"},
+    "input_sha256": {"$ref": "#/$defs/sha256"},
+    "canonical_sha256": {"$ref": "#/$defs/sha256"},
+    "input_format": {"enum": ["canonical-jsonl", "otlp-json"]},
+    "selected_trace_id": {"type": "string", "minLength": 1},
+    "event_count": {"type": "integer", "minimum": 0},
+    "expectation_coverage": {"$ref": "#/$defs/expectationCoverage"},
+    "expectation_scope": {"type": "string", "minLength": 1},
+    "timeline": {"type": "array", "items": {"$ref": "#/$defs/timelineEvent"}},
+    "first_provable_divergence": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/divergence"}]},
+    "divergences": {"type": "array", "items": {"$ref": "#/$defs/divergence"}},
+    "causal_chain": {"type": "array", "items": {"$ref": "#/$defs/chainEvent"}},
+    "attribution": {"type": "array", "items": {"$ref": "#/$defs/attribution"}},
+    "attribution_scope": {"type": "string", "minLength": 1},
+    "confidence": {"enum": ["NONE", "MEDIUM", "HIGH"]},
+    "confidence_scope": {"type": "string", "minLength": 1},
+    "evidence_gaps": {"type": "array", "items": {"$ref": "#/$defs/evidenceGap"}},
+    "evidence_completeness": {"enum": ["INCOMPLETE", "COMPLETE_FOR_SUPPLIED_ASSERTIONS"]},
+    "evidence_completeness_scope": {"type": "string", "minLength": 1},
+    "reproducibility": {"enum": ["NOT_TESTED", "REPRODUCED", "DRIFTED"]},
+    "reconstruction_status": {"enum": ["DIVERGENCE_RECONSTRUCTED", "NO_DIVERGENCE_ESTABLISHED"]},
+    "supplementary_evidence_bundle_sha256": {"$ref": "#/$defs/sha256"},
+    "trace_evidence": {"$ref": "#/$defs/traceEvidence"}
   },
   "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "expectationCoverage": {
       "type": "object",
-      "required": [
-        "status",
-        "events_with_expectations",
-        "total_events",
-        "ratio",
-        "claim"
-      ],
+      "required": ["status", "events_with_expectations", "total_events", "ratio", "claim"],
       "properties": {
-        "status": {
-          "enum": [
-            "NO_EVENTS",
-            "NO_EXPECTATIONS",
-            "PARTIAL",
-            "COMPLETE"
-          ]
-        },
-        "events_with_expectations": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "total_events": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "ratio": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1
-        },
-        "claim": {
-          "type": "string"
-        }
+        "status": {"enum": ["NO_EVENTS", "NO_EXPECTATIONS", "PARTIAL", "COMPLETE"]},
+        "events_with_expectations": {"type": "integer", "minimum": 0},
+        "total_events": {"type": "integer", "minimum": 0},
+        "ratio": {"type": "number", "minimum": 0, "maximum": 1},
+        "claim": {"type": "string"}
       }
     },
     "mismatch": {
       "type": "object",
-      "required": [
-        "field",
-        "expected",
-        "observed"
-      ],
-      "properties": {
-        "field": {
-          "type": "string"
-        },
-        "expected": {},
-        "observed": {}
-      }
+      "required": ["field", "expected", "observed"],
+      "properties": {"field": {"type": "string"}, "expected": {}, "observed": {}}
     },
     "timelineEvent": {
       "type": "object",
-      "required": [
-        "event_id",
-        "timestamp",
-        "actor",
-        "kind",
-        "status",
-        "parent_ids",
-        "mismatches"
-      ],
+      "required": ["event_id", "timestamp", "actor", "kind", "status", "parent_ids", "source_line", "evidence", "mismatches"],
       "properties": {
-        "event_id": {
-          "type": "string"
-        },
-        "timestamp": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "actor": {
-          "type": "string"
-        },
-        "kind": {
-          "type": "string"
-        },
-        "status": {
-          "enum": [
-            "VALID",
-            "DIVERGENT",
-            "UNASSESSED"
-          ]
-        },
-        "parent_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "source_line": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "evidence": {
-          "type": "object"
-        },
-        "mismatches": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/mismatch"
-          }
-        }
+        "event_id": {"type": "string"}, "timestamp": {"type": "string", "format": "date-time"},
+        "actor": {"type": "string"}, "kind": {"type": "string"},
+        "status": {"enum": ["VALID", "DIVERGENT", "UNASSESSED"]},
+        "parent_ids": {"type": "array", "items": {"type": "string"}},
+        "source_line": {"type": ["integer", "null"]}, "evidence": {"type": "object"},
+        "mismatches": {"type": "array", "items": {"$ref": "#/$defs/mismatch"}}
       }
     },
     "divergence": {
       "type": "object",
-      "required": [
-        "event_id",
-        "timestamp",
-        "actor",
-        "kind",
-        "parent_ids",
-        "mismatches"
-      ],
+      "required": ["event_id", "timestamp", "actor", "kind", "parent_ids", "source_line", "evidence", "mismatches"],
       "properties": {
-        "event_id": {
-          "type": "string"
-        },
-        "timestamp": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "actor": {
-          "type": "string"
-        },
-        "kind": {
-          "type": "string"
-        },
-        "parent_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "source_line": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "evidence": {
-          "type": "object"
-        },
-        "mismatches": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/mismatch"
-          }
-        }
+        "event_id": {"type": "string"}, "timestamp": {"type": "string", "format": "date-time"},
+        "actor": {"type": "string"}, "kind": {"type": "string"},
+        "parent_ids": {"type": "array", "items": {"type": "string"}},
+        "source_line": {"type": ["integer", "null"]}, "evidence": {"type": "object"},
+        "mismatches": {"type": "array", "items": {"$ref": "#/$defs/mismatch"}}
       }
     },
     "chainEvent": {
       "type": "object",
-      "required": [
-        "event_id",
-        "timestamp",
-        "kind",
-        "actor",
-        "relationship",
-        "direct_parent_ids",
-        "divergent_ancestor_ids"
-      ],
+      "required": ["event_id", "timestamp", "kind", "actor", "relationship", "direct_parent_ids", "divergent_ancestor_ids"],
       "properties": {
-        "event_id": {
-          "type": "string"
-        },
-        "timestamp": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "kind": {
-          "type": "string"
-        },
-        "actor": {
-          "type": "string"
-        },
-        "relationship": {
-          "enum": [
-            "ROOT_DIVERGENCE",
-            "EXPLICITLY_DOWNSTREAM",
-            "TEMPORALLY_DOWNSTREAM"
-          ]
-        },
-        "direct_parent_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "divergent_ancestor_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
+        "event_id": {"type": "string"}, "timestamp": {"type": "string", "format": "date-time"},
+        "kind": {"type": "string"}, "actor": {"type": "string"},
+        "relationship": {"enum": ["ROOT_DIVERGENCE", "EXPLICITLY_DOWNSTREAM", "TEMPORALLY_DOWNSTREAM"]},
+        "direct_parent_ids": {"type": "array", "items": {"type": "string"}},
+        "divergent_ancestor_ids": {"type": "array", "items": {"type": "string"}}
       }
     },
     "attribution": {
       "type": "object",
-      "required": [
-        "actor",
-        "role",
-        "event_ids",
-        "basis"
-      ],
+      "required": ["actor", "role", "event_ids", "basis"],
       "properties": {
-        "actor": {
-          "type": "string"
-        },
-        "role": {
-          "enum": [
-            "PRIMARY",
-            "CONTRIBUTING",
-            "DOWNSTREAM"
-          ]
-        },
-        "event_ids": {
-          "type": "array",
-          "items": {
-            "type": "string"
+        "actor": {"type": "string"}, "role": {"enum": ["PRIMARY", "CONTRIBUTING", "DOWNSTREAM"]},
+        "event_ids": {"type": "array", "items": {"type": "string"}}, "basis": {"type": "string"}
+      }
+    },
+    "evidenceGap": {
+      "type": "object",
+      "required": ["type", "event_id", "kind", "actor", "basis", "effect"],
+      "properties": {
+        "type": {"enum": ["UNASSESSED_EVENT", "MISSING_CAUSAL_LINK"]},
+        "event_id": {"type": "string"}, "kind": {"type": "string"}, "actor": {"type": "string"},
+        "basis": {"type": "string"}, "effect": {"type": "string"}
+      }
+    },
+    "traceEvidence": {
+      "type": "object",
+      "required": ["format", "record_sha256", "trusted_key_sha256", "verification"],
+      "properties": {
+        "format": {"const": "TRACE"},
+        "record_sha256": {"$ref": "#/$defs/sha256"},
+        "trusted_key_sha256": {"$ref": "#/$defs/sha256"},
+        "verifier_package": {"type": "object"},
+        "eat_profile": {}, "iat": {}, "subject": {}, "model": {"type": "object"},
+        "runtime": {"type": "object"}, "policy": {"type": "object"}, "data_class": {},
+        "tool_transcript": {"type": "object"}, "appraisal": {"type": "object"}, "transparency": {},
+        "verification": {
+          "type": "object",
+          "required": ["status", "trusted_key_source", "scope"],
+          "properties": {
+            "status": {"const": "VERIFIED"},
+            "trusted_key_source": {"const": "caller-supplied"},
+            "scope": {"type": "string"}
           }
-        },
-        "basis": {
-          "type": "string"
         }
       }
     }

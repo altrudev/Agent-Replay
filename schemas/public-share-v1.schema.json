@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-replay.dev/schemas/public-share-v1.schema.json",
+  "title": "Agent Replay Public Share v1",
+  "type": "object",
+  "required": ["schema", "source_schema", "source_input_sha256", "source_canonical_sha256", "event_count", "reconstruction_status", "timeline", "divergences", "causal_chain", "attribution", "evidence_gaps", "scope", "redaction"],
+  "properties": {
+    "schema": {"const": "agent-replay.public-share.v1"},
+    "source_schema": {"const": "agent-replay.incident.v2"},
+    "source_input_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "source_canonical_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "event_count": {"type": "integer", "minimum": 0},
+    "expectation_coverage": {"type": ["object", "null"]},
+    "reconstruction_status": {"enum": ["DIVERGENCE_RECONSTRUCTED", "NO_DIVERGENCE_ESTABLISHED"]},
+    "evidence_completeness": {"enum": ["INCOMPLETE", "COMPLETE_FOR_SUPPLIED_ASSERTIONS"]},
+    "confidence": {"enum": ["NONE", "MEDIUM", "HIGH"]},
+    "timeline": {"type": "array", "items": {"$ref": "#/$defs/event"}},
+    "first_provable_divergence": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/event"}]},
+    "divergences": {"type": "array", "items": {"$ref": "#/$defs/event"}},
+    "causal_chain": {"type": "array", "items": {"type": "object"}},
+    "attribution": {"type": "array", "items": {"type": "object"}},
+    "evidence_gaps": {"type": "array", "items": {"type": "object"}},
+    "scope": {"type": "object"},
+    "redaction": {"type": "object", "required": ["assertion_values_included"]}
+  },
+  "$defs": {
+    "mismatch": {
+      "type": "object",
+      "required": ["assertion", "expected_type", "observed_type", "changed"],
+      "properties": {
+        "assertion": {"type": "string", "pattern": "^assertion-"},
+        "expected_type": {"type": "string"},
+        "observed_type": {"type": "string"},
+        "changed": {"type": "boolean"},
+        "expected": {},
+        "observed": {}
+      }
+    },
+    "event": {
+      "type": "object",
+      "required": ["event", "kind", "actor", "parents", "mismatches"],
+      "properties": {
+        "event": {"type": "string", "pattern": "^event-"},
+        "kind": {"type": "string", "pattern": "^kind-"},
+        "actor": {"type": "string", "pattern": "^actor-"},
+        "parents": {"type": "array", "items": {"type": "string"}},
+        "mismatches": {"type": "array", "items": {"$ref": "#/$defs/mismatch"}},
+        "status": {"enum": ["VALID", "DIVERGENT", "UNASSESSED"]}
+      }
+    }
+  }
+}
