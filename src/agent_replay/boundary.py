@@ -27,6 +27,23 @@ def sha256_json(value: Any) -> str:
     return hashlib.sha256(_canonical_bytes(value)).hexdigest()
 
 
+def _event_digest(event: CanonicalEvent) -> str:
+    return sha256_json({
+        "event_id": event.event_id,
+        "timestamp": event.timestamp,
+        "actor": event.actor,
+        "kind": event.kind,
+        "observed": event.observed,
+        "expected": event.expected,
+        "evidence": event.evidence,
+        "parent_ids": list(event.parent_ids),
+    })
+
+
+def _missing_fields(payload: dict[str, Any], required: tuple[str, ...]) -> list[str]:
+    return [name for name in required if payload.get(name) in (None, "")]
+
+
 def load_trust_store(path: str | Path | None) -> dict[str, str]:
     if path is None:
         return {}
@@ -123,7 +140,13 @@ def _policy_assessment(
     expected_sha256 = sha256_json(event.expected)
     result["expected_sha256"] = expected_sha256
     if status == "VERIFIED":
-        if payload.get("event_id") != event.event_id:
+        missing = _missing_fields(payload, (
+            "policy_id", "policy_version", "event_id", "subject",
+            "action", "authority_scope", "expected_sha256",
+        ))
+        if missing:
+            result.update(status="INVALID_PROOF", basis="signed policy proof missing required fields: " + ", ".join(missing))
+        elif payload.get("event_id") != event.event_id:
             result.update(status="BINDING_MISMATCH", basis="signed policy proof is bound to a different event_id")
         elif payload.get("expected_sha256") != expected_sha256:
             result.update(status="BINDING_MISMATCH", basis="signed policy proof does not bind this event's expected state")
@@ -149,6 +172,7 @@ def _receipt_assessment(
     *,
     trust_store: Mapping[str, str],
     policy: dict[str, Any],
+    events_by_id: Mapping[str, CanonicalEvent],
 ) -> dict[str, Any]:
     status, basis, payload = _verify_envelope(
         event.evidence.get("revocation_receipt"),
@@ -167,18 +191,35 @@ def _receipt_assessment(
         "policy_id",
         "policy_version",
         "revocation_sha256",
+        "revocation_event_id",
+        "revocation_event_sha256",
         "nonce",
     ):
         if field in payload:
             result[field] = payload[field]
 
     if status == "VERIFIED":
+        missing = _missing_fields(payload, (
+            "revocation_id", "authority_version", "execution_boundary_id",
+            "received_at", "policy_id", "policy_version",
+            "revocation_sha256", "revocation_event_id",
+            "revocation_event_sha256", "nonce",
+        ))
         received_at = _parse_time(payload.get("received_at"))
         event_time = _parse_time(event.timestamp)
-        if received_at is None:
+        revocation_event = events_by_id.get(str(payload.get("revocation_event_id", "")))
+        if missing:
+            result.update(status="INVALID_PROOF", basis="signed revocation receipt missing required fields: " + ", ".join(missing))
+        elif received_at is None:
             result.update(status="INVALID_PROOF", basis="received_at is missing or invalid")
         elif event_time and received_at > event_time:
             result.update(status="TEMPORAL_MISMATCH", basis="receipt claims delivery after the execution event")
+        elif revocation_event is None:
+            result.update(status="MISSING_BOUND_EVIDENCE", basis="receipt references a revocation event not present in supplied evidence")
+        elif payload.get("revocation_event_sha256") != _event_digest(revocation_event):
+            result.update(status="BINDING_MISMATCH", basis="receipt does not bind the supplied revocation event bytes")
+        elif received_at < (_parse_time(revocation_event.timestamp) or received_at):
+            result.update(status="TEMPORAL_MISMATCH", basis="receipt claims delivery before the bound revocation event")
         elif policy.get("status") == "VERIFIED" and (
             payload.get("policy_id") != policy.get("policy_id")
             or payload.get("policy_version") != policy.get("policy_version")
@@ -198,10 +239,26 @@ def assess_boundary_evidence(
     assessments: list[dict[str, Any]] = []
     authenticated_expectations = 0
     verified_receipts = 0
+    events_by_id = {event.event_id: event for event in events}
+    seen_receipt_nonces: set[tuple[str, str]] = set()
 
     for event in events:
         policy = _policy_assessment(event, trust_store=trusted)
-        receipt = _receipt_assessment(event, trust_store=trusted, policy=policy)
+        receipt = _receipt_assessment(
+            event,
+            trust_store=trusted,
+            policy=policy,
+            events_by_id=events_by_id,
+        )
+        if receipt["status"] == "VERIFIED":
+            nonce_key = (str(receipt.get("key_id", "")), str(receipt.get("nonce", "")))
+            if nonce_key in seen_receipt_nonces:
+                receipt.update(
+                    status="REPLAY_DETECTED",
+                    basis="the same signed receipt nonce was already observed for this key_id",
+                )
+            else:
+                seen_receipt_nonces.add(nonce_key)
         if policy["status"] == "VERIFIED":
             authenticated_expectations += 1
         if receipt["status"] == "VERIFIED":
@@ -225,6 +282,9 @@ def assess_boundary_evidence(
         "claim_scope": (
             "Cryptographic verification establishes integrity and binding to caller-trusted "
             "Ed25519 keys. Agent Replay does not decide whether a trusted signer was entitled "
-            "to define policy or revoke authority beyond the supplied trust configuration."
+            "to define policy or revoke authority beyond the supplied trust configuration. "
+            "A verified receipt proves delivery to the signed execution_boundary_id; linking "
+            "a later execution event to that same real-world boundary still depends on the "
+            "identity evidence supplied for the execution event."
         ),
     }
