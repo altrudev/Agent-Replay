@@ -21,54 +21,54 @@ def _incident():
         "expectation_scope": "CALLER_SUPPLIED_ASSERTIONS",
         "timeline": [
             {
-                "event_id": "approval",
+                "event_id": "approval-prod-west",
                 "timestamp": "2026-09-17T00:00:00Z",
                 "actor": "internal-approval-service",
-                "kind": "approval.issued",
+                "kind": "approval.internal.v7",
                 "status": "VALID",
                 "parent_ids": [],
                 "evidence": {"token": "super-secret", "internal_path": "/home/ubuntu/private"},
                 "mismatches": [],
             },
             {
-                "event_id": "execute",
+                "event_id": "execute-prod-west",
                 "timestamp": "2026-09-17T00:00:01Z",
                 "actor": "payment-agent",
-                "kind": "execution.attempted",
+                "kind": "execution.internal.v9",
                 "status": "DIVERGENT",
-                "parent_ids": ["approval"],
+                "parent_ids": ["approval-prod-west"],
                 "evidence": {"approval_id": "private-id"},
-                "mismatches": [{"field": "execution_permitted", "expected": False, "observed": True}],
+                "mismatches": [{"field": "internal_execution_gate", "expected": False, "observed": True}],
             },
         ],
         "first_provable_divergence": {
-            "event_id": "execute",
+            "event_id": "execute-prod-west",
             "timestamp": "2026-09-17T00:00:01Z",
             "actor": "payment-agent",
-            "kind": "execution.attempted",
-            "parent_ids": ["approval"],
+            "kind": "execution.internal.v9",
+            "parent_ids": ["approval-prod-west"],
             "evidence": {"approval_id": "private-id"},
-            "mismatches": [{"field": "execution_permitted", "expected": False, "observed": True}],
+            "mismatches": [{"field": "internal_execution_gate", "expected": False, "observed": True}],
         },
         "divergences": [
             {
-                "event_id": "execute",
+                "event_id": "execute-prod-west",
                 "timestamp": "2026-09-17T00:00:01Z",
                 "actor": "payment-agent",
-                "kind": "execution.attempted",
-                "parent_ids": ["approval"],
+                "kind": "execution.internal.v9",
+                "parent_ids": ["approval-prod-west"],
                 "evidence": {"approval_id": "private-id"},
-                "mismatches": [{"field": "execution_permitted", "expected": False, "observed": True}],
+                "mismatches": [{"field": "internal_execution_gate", "expected": False, "observed": True}],
             }
         ],
         "causal_chain": [
             {
-                "event_id": "execute",
+                "event_id": "execute-prod-west",
                 "timestamp": "2026-09-17T00:00:01Z",
-                "kind": "execution.attempted",
+                "kind": "execution.internal.v9",
                 "actor": "payment-agent",
                 "relationship": "ROOT_DIVERGENCE",
-                "direct_parent_ids": ["approval"],
+                "direct_parent_ids": ["approval-prod-west"],
                 "divergent_ancestor_ids": [],
             }
         ],
@@ -76,7 +76,7 @@ def _incident():
             {
                 "actor": "payment-agent",
                 "role": "PRIMARY",
-                "event_ids": ["execute"],
+                "event_ids": ["execute-prod-west"],
                 "basis": "actor owns the earliest provable divergence",
             }
         ],
@@ -86,11 +86,11 @@ def _incident():
         "evidence_gaps": [
             {
                 "type": "UNASSESSED_EVENT",
-                "event_id": "approval",
-                "kind": "approval.issued",
+                "event_id": "approval-prod-west",
+                "kind": "approval.internal.v7",
                 "actor": "internal-approval-service",
-                "basis": "event has no caller-supplied expected-state assertion",
-                "effect": "Agent Replay cannot establish validity or divergence for this event",
+                "basis": "internal proprietary gap explanation",
+                "effect": "internal proprietary effect explanation",
             }
         ],
         "evidence_completeness": "INCOMPLETE",
@@ -99,20 +99,37 @@ def _incident():
     }
 
 
-def test_share_bundle_omits_raw_evidence_paths_and_real_actor_labels():
+def test_share_bundle_omits_raw_and_semantic_identifiers():
     bundle = build_share_bundle(_incident(), agent_replay_commit="abc123")
     encoded = json.dumps(bundle)
-    assert "super-secret" not in encoded
-    assert "/home/ubuntu/private" not in encoded
-    assert "internal-approval-service" not in encoded
-    assert "payment-agent" not in encoded
+    forbidden = (
+        "super-secret",
+        "/home/ubuntu/private",
+        "internal-approval-service",
+        "payment-agent",
+        "approval-prod-west",
+        "execute-prod-west",
+        "approval.internal.v7",
+        "execution.internal.v9",
+        "internal_execution_gate",
+        "internal proprietary gap explanation",
+        "internal proprietary effect explanation",
+    )
+    for value in forbidden:
+        assert value not in encoded
     assert "actor-1" in encoded
     assert "actor-2" in encoded
+    assert "event-1" in encoded
+    assert "event-2" in encoded
+    assert "kind-1" in encoded
+    assert "kind-2" in encoded
+    assert "assertion-1" in encoded
     assert bundle["sharing_policy"]["allowlist_export"] is True
+    assert bundle["sharing_policy"]["proprietary_engine_details_included"] is False
     assert len(bundle["bundle_sha256"]) == 64
 
 
-def test_radial_export_omits_engine_path_features_and_scores():
+def test_radial_export_is_aggregate_only():
     public = sanitize_radial({
         "engine": "ddc-radial-frequency/1.0",
         "engine_source": {"sha256": "c" * 64, "path": "/home/ubuntu/src/ddc/src/radial_frequency_v10.py"},
@@ -122,27 +139,48 @@ def test_radial_export_omits_engine_path_features_and_scores():
         "examined_edges": 5,
         "hypotheses": [
             {
-                "prior_id": "toctou",
-                "title": "Check/use temporal race",
+                "prior_id": "private-prior-id",
+                "title": "Private Prior Title",
                 "score": 0.85,
-                "subjects": ["approval", "execute"],
-                "features": {"time_gap": 0.4},
-                "falsification_test": "change state after validation",
-                "rationale": "validation and effect are separated",
+                "subjects": ["approval-prod-west", "execute-prod-west"],
+                "features": {"private_feature": 0.4},
+                "falsification_test": "private falsification logic",
+                "rationale": "private rationale",
                 "disposition": "CANDIDATE",
-            }
+            },
+            {
+                "prior_id": "private-prior-id",
+                "title": "Private Prior Title",
+                "score": 0.90,
+                "subjects": ["x", "y"],
+                "features": {"private_feature": 0.9},
+                "falsification_test": "private falsification logic",
+                "rationale": "private rationale",
+                "disposition": "CANDIDATE",
+            },
         ],
     })
     encoded = json.dumps(public)
-    assert "/home/ubuntu" not in encoded
-    assert "features" not in encoded
-    assert '"score"' not in encoded
+    forbidden = (
+        "ddc-radial-frequency",
+        "/home/ubuntu",
+        "private-prior-id",
+        "Private Prior Title",
+        "approval-prod-west",
+        "private_feature",
+        "private falsification logic",
+        "private rationale",
+        '"score"',
+    )
+    for value in forbidden:
+        assert value not in encoded
     assert public["engine_sha256"] == "c" * 64
-    assert public["hypotheses"][0]["prior_id"] == "toctou"
+    assert public["candidate_count"] == 2
+    assert public["candidate_class_count"] == 1
 
 
-def test_sensitive_scan_fails_closed_if_allowlisted_text_contains_secret():
+def test_sensitive_scan_fails_closed_if_allowlisted_scalar_contains_secret():
     incident = _incident()
-    incident["attribution"][0]["basis"] = "Bearer abc.def.ghi"
+    incident["timeline"][1]["mismatches"][0]["observed"] = "Bearer abc.def.ghi"
     with pytest.raises(ValueError, match="sensitive-data scan"):
         build_share_bundle(incident)
