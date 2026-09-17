@@ -9,11 +9,10 @@ Group=agentreplay
 WorkingDirectory=/opt/agent-replay/current/service
 EnvironmentFile=/etc/agent-replay/service.env
 Environment=PYTHONPATH=/opt/agent-replay/current/src:/opt/agent-replay/current/service
-ExecStart=/opt/agent-replay/venv/bin/python -m agent_replay_service.dev_server
+ExecStart=/opt/agent-replay/current/.venv/bin/python -m agent_replay_service.dev_server
 Restart=on-failure
 RestartSec=2
 
-# Isolation and resource boundary from DSR.
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
