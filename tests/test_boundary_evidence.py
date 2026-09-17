@@ -25,6 +25,19 @@ def _signed(private_key, key_id, payload):
     }
 
 
+def _event_digest(event_id, timestamp, actor, kind, observed=None, expected=None, evidence=None, parent_ids=None):
+    return hashlib.sha256(_canonical({
+        "event_id": event_id,
+        "timestamp": timestamp,
+        "actor": actor,
+        "kind": kind,
+        "observed": observed or {},
+        "expected": expected or {},
+        "evidence": evidence or {},
+        "parent_ids": parent_ids or [],
+    })).hexdigest()
+
+
 def _public_b64(private_key):
     raw = private_key.public_key().public_bytes(
         encoding=serialization.Encoding.Raw,
@@ -50,6 +63,13 @@ def test_authenticated_policy_and_revocation_receipt_are_verified():
         "valid_from": "2026-09-17T20:00:00Z",
         "valid_until": "2026-09-17T22:00:00Z",
     }
+    revocation_digest = _event_digest(
+        "rev-evt",
+        "2026-09-17T20:58:00.000000Z",
+        "authority",
+        "authority_revoked",
+        observed={"authority_version": "18"},
+    )
     receipt_payload = {
         "revocation_id": "rev-1",
         "authority_version": "18",
@@ -58,9 +78,17 @@ def test_authenticated_policy_and_revocation_receipt_are_verified():
         "policy_id": "pay-policy",
         "policy_version": "18",
         "revocation_sha256": "a" * 64,
+        "revocation_event_id": "rev-evt",
+        "revocation_event_sha256": revocation_digest,
         "nonce": "n-1",
     }
     records = [{
+        "event_id": "rev-evt",
+        "timestamp": "2026-09-17T20:58:00Z",
+        "actor": "authority",
+        "kind": "authority_revoked",
+        "observed": {"authority_version": "18"},
+    }, {
         "event_id": "exec-1",
         "timestamp": "2026-09-17T21:00:00Z",
         "actor": "executor",
@@ -115,7 +143,20 @@ def test_untrusted_policy_never_becomes_authenticated():
 
 def test_receipt_after_execution_does_not_establish_pre_execution_delivery():
     key = Ed25519PrivateKey.generate()
+    revocation_digest = _event_digest(
+        "rev-evt",
+        "2026-09-17T20:58:00.000000Z",
+        "authority",
+        "authority_revoked",
+        observed={"authority_version": "18"},
+    )
     records = [{
+        "event_id": "rev-evt",
+        "timestamp": "2026-09-17T20:58:00Z",
+        "actor": "authority",
+        "kind": "authority_revoked",
+        "observed": {"authority_version": "18"},
+    }, {
         "event_id": "exec-1",
         "timestamp": "2026-09-17T21:00:00Z",
         "actor": "executor",
@@ -131,6 +172,8 @@ def test_receipt_after_execution_does_not_establish_pre_execution_delivery():
                 "policy_id": "pay-policy",
                 "policy_version": "18",
                 "revocation_sha256": "b" * 64,
+                "revocation_event_id": "rev-evt",
+                "revocation_event_sha256": revocation_digest,
                 "nonce": "n-2",
             })
         },
