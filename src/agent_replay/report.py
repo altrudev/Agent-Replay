@@ -84,6 +84,18 @@ def render_text(report: dict[str, Any]) -> str:
     lines.append(f"Confidence: {report['confidence']}")
     lines.append(f"Expectation scope: {report['expectation_scope']}")
     lines.append(f"Confidence scope: {report['confidence_scope']}")
+    boundary = report.get("boundary_evidence")
+    if isinstance(boundary, dict):
+        lines.append("")
+        lines.append("BOUNDARY EVIDENCE")
+        lines.append(
+            f"Authenticated expectations: {boundary.get('authenticated_expectation_events', 0)}"
+        )
+        lines.append(
+            f"Verified revocation receipts: {boundary.get('verified_revocation_receipts', 0)}"
+        )
+        lines.append(f"Replay scope: {boundary.get('replay_scope', 'UNKNOWN')}")
+        lines.append(f"Scope: {boundary.get('claim_scope', '')}")
     lines.append("")
 
     lines.append("TIMELINE")
