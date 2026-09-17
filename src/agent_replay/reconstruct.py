@@ -13,6 +13,7 @@ from .analyze import (
     evidence_gaps,
     mismatches,
 )
+from .boundary import assess_boundary_evidence
 from .model import CanonicalEvent
 from .normalize import (
     DEFAULT_MAX_BYTES,
@@ -99,10 +100,12 @@ def reconstruct_events(
     events: list[CanonicalEvent],
     *,
     input_sha256: str,
+    trust_store: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     divergences = build_divergences(events)
     chain = causal_chain(events, divergences)
     gaps = evidence_gaps(events, divergences, chain)
+    boundary = assess_boundary_evidence(events, trust_store=trust_store)
 
     return {
         "schema": "agent-replay.incident.v2",
@@ -111,9 +114,10 @@ def reconstruct_events(
         "event_count": len(events),
         "expectation_coverage": _expectation_coverage(events),
         "expectation_scope": (
-            "CALLER_SUPPLIED_ASSERTIONS: expected-state values are supplied by "
-            "the input evidence and are not independently authenticated by Agent Replay."
+            "MIXED_PROVENANCE: expected-state values remain caller-supplied unless "
+            "boundary_evidence marks the event policy VERIFIED against a caller-trusted key."
         ),
+        "boundary_evidence": boundary,
         "timeline": _timeline(events),
         "first_provable_divergence": divergences[0] if divergences else None,
         "divergences": divergences,
@@ -150,6 +154,7 @@ def reconstruct_records(
     max_events: int = DEFAULT_MAX_EVENTS,
     max_parents: int = DEFAULT_MAX_PARENTS,
     max_depth: int = DEFAULT_MAX_DEPTH,
+    trust_store: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     events = normalize_records(
         records,
@@ -157,7 +162,7 @@ def reconstruct_records(
         max_parents=max_parents,
         max_depth=max_depth,
     )
-    return reconstruct_events(events, input_sha256=input_sha256)
+    return reconstruct_events(events, input_sha256=input_sha256, trust_store=trust_store)
 
 
 def reconstruct(
@@ -167,6 +172,7 @@ def reconstruct(
     max_events: int = DEFAULT_MAX_EVENTS,
     max_parents: int = DEFAULT_MAX_PARENTS,
     max_depth: int = DEFAULT_MAX_DEPTH,
+    trust_store: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     source = Path(path)
     raw = source.read_bytes()
@@ -185,4 +191,5 @@ def reconstruct(
     return reconstruct_events(
         events,
         input_sha256=hashlib.sha256(raw).hexdigest(),
+        trust_store=trust_store,
     )
