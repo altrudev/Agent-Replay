@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-replay-service"
+version = "0.1.0"
+description = "Hosted control plane and bounded execution service for Agent Replay"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+agent-replay-service-admin = "agent_replay_service.admin_cli:main"
+agent-replay-service-dev = "agent_replay_service.dev_server:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
