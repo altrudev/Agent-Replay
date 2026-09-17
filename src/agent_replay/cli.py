@@ -59,6 +59,14 @@ def _supplementary_bundle_sha256(incident: dict, trace_summary: dict) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _attach_trace_evidence(incident: dict, record: str, trusted_key: str) -> None:
+    trace_summary = verify_trace_record(record, trusted_key)
+    incident["trace_evidence"] = trace_summary
+    incident["supplementary_evidence_bundle_sha256"] = _supplementary_bundle_sha256(
+        incident, trace_summary
+    )
+
+
 def _detect_format(path: str) -> str:
     suffix = Path(path).suffix.lower()
     if suffix in {".jsonl", ".ndjson"}:
@@ -169,17 +177,19 @@ def _run(args, parser: argparse.ArgumentParser) -> None:
             parser.error("--trace-record and --trace-key must be supplied together")
         incident = _reconstruct_input(args)
         if args.trace_record:
-            trace_summary = verify_trace_record(args.trace_record, args.trace_key)
-            incident["trace_evidence"] = trace_summary
-            incident["supplementary_evidence_bundle_sha256"] = _supplementary_bundle_sha256(incident, trace_summary)
+            _attach_trace_evidence(incident, args.trace_record, args.trace_key)
         _emit(incident, args.json, args.output)
         return
 
     if args.command == "reproduce":
+        if bool(args.trace_record) != bool(args.trace_key):
+            parser.error("--trace-record and --trace-key must be supplied together")
         expected = json.loads(Path(args.incident).read_text(encoding="utf-8"))
         replay_args = argparse.Namespace(**vars(args))
         replay_args.input = args.evidence
         observed = _reconstruct_input(replay_args)
+        if args.trace_record:
+            _attach_trace_evidence(observed, args.trace_record, args.trace_key)
         result = compare_reconstruction(expected, observed)
         _write_output(json.dumps(result, indent=2, sort_keys=True) + "\n", args.output)
         if result["status"] != "REPRODUCED":
@@ -208,6 +218,8 @@ def main():
     reproduce_parser.add_argument("evidence", help="source evidence to replay")
     reproduce_parser.add_argument("--format", choices=("auto", "jsonl", "otel"), default="auto")
     reproduce_parser.add_argument("--trace-id")
+    reproduce_parser.add_argument("--trace-record", help="TRACE record used by the original incident, when applicable")
+    reproduce_parser.add_argument("--trace-key", help="caller-supplied trusted TRACE key used by the original incident")
     reproduce_parser.add_argument("-o", "--output", help="output path; default stdout")
     _add_limits(reproduce_parser)
 
