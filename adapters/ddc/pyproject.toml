@@ -4,12 +4,22 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-replay-ddc"
-version = "0.5.0"
+version = "0.5.1"
 description = "Optional DDC adapter for Agent Replay"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 authors = [{name = "Valentyn Rukhaylo"}]
-dependencies = ["agent-replay>=0.5.0,<0.6.0"]
+keywords = ["ai-agents", "assurance", "forensics", "provenance"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+]
+dependencies = ["agent-replay>=0.5.1,<0.6.0"]
+
+[project.urls]
+Homepage = "https://github.com/altrudev/Agent-Replay"
+Repository = "https://github.com/altrudev/Agent-Replay"
 
 [project.scripts]
 agent-replay-ddc = "agent_replay_ddc.cli:main"
