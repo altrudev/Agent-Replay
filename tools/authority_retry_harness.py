@@ -156,13 +156,20 @@ def run_harness() -> tuple[list[dict], dict]:
         "schema": "agent-replay.execution-harness-result.v1",
         "harness_type": "deterministic-local-in-memory",
         "production_integration": False,
+        "expected_behavior_basis": "HARNESS_POLICY_ASSERTIONS",
+        "expected_behavior_scope": (
+            "The expected-state assertions are test-harness inputs and are not "
+            "independently authenticated policy truth."
+        ),
         "alternate_route_retry_exercised": alternate_retry_exercised,
         "primary_route_committed": primary_committed,
         "downstream_effect_count": len(payment_ledger),
         "revocation_delivery_acknowledgement_captured": False,
-        "independent_checkability": (
-            "The harness source, generated canonical events, and Agent Replay "
-            "reconstruction can be reproduced locally without DDC."
+        "independently_checkable_without_ddc": True,
+        "reproduction_command": (
+            "python3 tools/authority_retry_harness.py --events /tmp/authority-retry-events.jsonl "
+            "--result /tmp/authority-retry-harness.json && agent-replay reconstruct "
+            "/tmp/authority-retry-events.jsonl --json"
         ),
     }
     return events, result
@@ -185,6 +192,7 @@ def main() -> None:
     events_path.write_bytes(events_bytes)
 
     result["events_sha256"] = hashlib.sha256(events_bytes).hexdigest()
+    result["harness_source_sha256"] = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     result_path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     print(json.dumps(result, indent=2, sort_keys=True))
