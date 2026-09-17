@@ -135,6 +135,40 @@ def _safe_event(item: dict[str, Any], actor_aliases: dict[str, str], event_alias
     return out
 
 
+def _safe_boundary(
+    boundary: Any,
+    event_aliases: dict[str, str],
+    kind_aliases: dict[str, str],
+) -> dict[str, Any] | None:
+    if not isinstance(boundary, dict):
+        return None
+    events: list[dict[str, Any]] = []
+    for item in boundary.get("events") or []:
+        if not isinstance(item, dict):
+            continue
+        policy = item.get("policy") if isinstance(item.get("policy"), dict) else {}
+        receipt = item.get("revocation_receipt") if isinstance(item.get("revocation_receipt"), dict) else {}
+        events.append({
+            "event": event_aliases.get(str(item.get("event_id", "")), "event-unknown"),
+            "kind": kind_aliases.get(str(item.get("kind", "")), "kind-unknown"),
+            "policy_status": policy.get("status"),
+            "revocation_receipt_status": receipt.get("status"),
+        })
+    return {
+        "schema": boundary.get("schema"),
+        "trust_store_configured": bool(boundary.get("trust_store_configured")),
+        "authenticated_expectation_events": boundary.get("authenticated_expectation_events", 0),
+        "verified_revocation_receipts": boundary.get("verified_revocation_receipts", 0),
+        "replay_scope": boundary.get("replay_scope"),
+        "events": events,
+        "proof_material_included": False,
+        "scope": (
+            "Verification status is exported, but signed payloads, signatures, key identifiers, "
+            "and trusted public keys are omitted by default and cannot be re-verified from this bundle alone."
+        ),
+    }
+
+
 def sanitize_incident(incident: dict[str, Any], *, include_values: bool = False) -> dict[str, Any]:
     actor_aliases, event_aliases, kind_aliases, field_aliases = _collect_aliases(incident)
     first = incident.get("first_provable_divergence")
@@ -156,6 +190,12 @@ def sanitize_incident(incident: dict[str, Any], *, include_values: bool = False)
         for item in incident.get("attribution") or [] if isinstance(item, dict)
     ]
 
+    safe_boundary = _safe_boundary(
+        incident.get("boundary_evidence"),
+        event_aliases,
+        kind_aliases,
+    )
+
     return {
         "schema": "agent-replay.public-share.v1",
         "source_schema": incident.get("schema"),
@@ -163,6 +203,7 @@ def sanitize_incident(incident: dict[str, Any], *, include_values: bool = False)
         "source_canonical_sha256": incident.get("canonical_sha256"),
         "event_count": incident.get("event_count"),
         "expectation_coverage": safe_coverage,
+        "boundary_evidence": safe_boundary,
         "reconstruction_status": incident.get("reconstruction_status"),
         "evidence_completeness": incident.get("evidence_completeness"),
         "confidence": incident.get("confidence"),
@@ -179,13 +220,20 @@ def sanitize_incident(incident: dict[str, Any], *, include_values: bool = False)
         } for item in incident.get("causal_chain") or [] if isinstance(item, dict)],
         "attribution": attribution,
         "evidence_gaps": gaps,
-        "scope": {"expectations": "CALLER_SUPPLIED_ASSERTIONS", "attribution": "EVIDENCE_LABELS_ONLY", "confidence": "STRUCTURAL_ONLY", "completeness": "STRUCTURAL_ONLY"},
+        "scope": {
+            "expectations": "CRYPTOGRAPHIC_WHEN_VERIFIED_ELSE_CALLER_SUPPLIED",
+            "boundary_receipts": "SIGNED_WHEN_VERIFIED",
+            "attribution": "EVIDENCE_LABELS_ONLY",
+            "confidence": "STRUCTURAL_ONLY",
+            "completeness": "STRUCTURAL_ONLY",
+        },
         "redaction": {
             "actors_pseudonymized": True, "event_ids_pseudonymized": True,
             "event_kinds_pseudonymized": True, "assertion_fields_pseudonymized": True,
             "assertion_values_included": include_values, "timestamps_omitted": True,
             "raw_evidence_omitted": True, "free_text_basis_omitted": True,
-            "trace_evidence_omitted": True, "infrastructure_metadata_omitted": True,
+            "trace_evidence_omitted": True, "boundary_proof_material_omitted": True,
+            "trusted_key_identifiers_omitted": True, "infrastructure_metadata_omitted": True,
         },
     }
 
