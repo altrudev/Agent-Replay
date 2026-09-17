@@ -13,11 +13,15 @@ HEAD="$(git -C "$SRC" rev-parse HEAD)"
 
 BASE=/opt/agent-replay
 RELEASE="$BASE/releases/$EXPECTED"
+VALIDATED="$RELEASE/.agent-replay-validated"
 id -u agentreplay >/dev/null 2>&1 || useradd --system --home /var/lib/agent-replay --shell /usr/sbin/nologin agentreplay
 install -d -o root -g root -m 0755 "$BASE" "$BASE/releases" /etc/agent-replay
 install -d -o agentreplay -g agentreplay -m 0750 /var/lib/agent-replay /run/agent-replay
 
-if [[ ! -d "$RELEASE" ]]; then
+if [[ -d "$RELEASE" && ! -f "$VALIDATED" ]]; then
+  rm -rf "$RELEASE"
+fi
+if [[ ! -f "$VALIDATED" ]]; then
   install -d -o root -g root -m 0755 "$RELEASE"
   cleanup_failed_release() { rm -rf "$RELEASE"; }
   trap cleanup_failed_release ERR
@@ -26,8 +30,11 @@ if [[ ! -d "$RELEASE" ]]; then
   "$RELEASE/.venv/bin/python" -m pip install -q --upgrade pip
   "$RELEASE/.venv/bin/python" -m pip install -q -e "$RELEASE[dev]" -e "$RELEASE/service[dev]"
   PYTHONPATH="$RELEASE/src:$RELEASE/service" "$RELEASE/.venv/bin/python" -m pytest -q "$RELEASE/tests" "$RELEASE/service/tests"
+  printf '%s\n' "$EXPECTED" > "$VALIDATED"
+  chmod 0444 "$VALIDATED"
   trap - ERR
 fi
+[[ "$(cat "$VALIDATED")" == "$EXPECTED" ]] || { echo 'validated release sentinel mismatch' >&2; exit 4; }
 
 cp "$RELEASE/deploy/agent-replay/agent-replay.service" /etc/systemd/system/agent-replay.service
 if [[ ! -f /etc/agent-replay/service.env ]]; then
