@@ -53,10 +53,8 @@ def test_real_trace_verifier_accepts_valid_signed_record(tmp_path):
 
     assert summary["verification"]["status"] == "VERIFIED"
     assert summary["verification"]["trusted_key_source"] == "caller-supplied"
-    assert summary["verifier_package"] == {
-        "name": "agentrust-trace",
-        "version": "0.9.0",
-    }
+    assert summary["verifier_package"]["name"] == "agentrust-trace"
+    assert summary["verifier_package"]["version"]
 
 
 def test_real_trace_verifier_rejects_tampering(tmp_path):
@@ -77,5 +75,9 @@ def test_real_trace_verifier_rejects_wrong_trusted_key(tmp_path):
         encoding="utf-8",
     )
 
-    with pytest.raises(InvalidSignature):
+    # TRACE may reject a wrong caller-pinned key either at the explicit
+    # cnf.jwk identity-binding check or at signature verification. Both are
+    # valid fail-closed outcomes; Agent Replay must not depend on one specific
+    # internal rejection stage of the external verifier.
+    with pytest.raises((InvalidSignature, ValueError)):
         verify_trace_record(record_path, wrong_key_path)

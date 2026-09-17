@@ -45,6 +45,8 @@ def test_unassessed_event_is_not_labeled_valid(tmp_path: Path):
     assert report["timeline"][0]["status"] == "UNASSESSED"
     assert report["reconstruction_status"] == "NO_DIVERGENCE_ESTABLISHED"
     assert report["reproducibility"] == "NOT_TESTED"
+    assert report["evidence_completeness"] == "INCOMPLETE"
+    assert report["evidence_gaps"][0]["type"] == "UNASSESSED_EVENT"
 
 
 def test_explicit_causal_chain_and_attribution():
@@ -84,6 +86,10 @@ def test_no_invented_causality_without_parent_links(tmp_path: Path):
 
     assert second["relationship"] == "TEMPORALLY_DOWNSTREAM"
     assert report["confidence"] == "MEDIUM"
+    assert any(
+        gap["type"] == "MISSING_CAUSAL_LINK" and gap["event_id"] == "b"
+        for gap in report["evidence_gaps"]
+    )
 
 
 def test_timestamps_are_normalized_before_ordering(tmp_path: Path):
@@ -152,6 +158,53 @@ def test_parent_cycle_fails_closed(tmp_path: Path):
     )
     with pytest.raises(EvidenceFormatError, match="cycle"):
         reconstruct(str(source))
+
+
+def test_execution_time_authority_revocation_case():
+    report = reconstruct(
+        "examples/authority-revoked-before-execution/events.jsonl"
+    )
+
+    assert report["first_provable_divergence"]["event_id"] == "execution_attempt"
+    assert report["first_provable_divergence"]["mismatches"] == [
+        {
+            "field": "execution_permitted",
+            "expected": False,
+            "observed": True,
+        }
+    ]
+
+    relationships = {
+        item["event_id"]: item["relationship"]
+        for item in report["causal_chain"]
+    }
+    roles = {
+        item["actor"]: item["role"]
+        for item in report["attribution"]
+    }
+
+    assert relationships["payment_executed"] == "EXPLICITLY_DOWNSTREAM"
+    assert roles["payment-agent"] == "PRIMARY"
+    assert roles["payment-api"] == "CONTRIBUTING"
+    assert report["evidence_completeness"] == "INCOMPLETE"
+    assert any(
+        gap["type"] == "UNASSESSED_EVENT"
+        and gap["event_id"] == "revocation_propagation"
+        for gap in report["evidence_gaps"]
+    )
+
+
+def test_complete_supplied_assertions_report_no_structural_gap(tmp_path: Path):
+    source = tmp_path / "events.jsonl"
+    source.write_text(
+        '{"event_id":"a","timestamp":"2026-01-01T00:00:00Z","actor":"a",'
+        '"kind":"x","expected":{"x":1},"observed":{"x":1}}\n',
+        encoding="utf-8",
+    )
+
+    report = reconstruct(str(source))
+    assert report["evidence_gaps"] == []
+    assert report["evidence_completeness"] == "COMPLETE_FOR_SUPPLIED_ASSERTIONS"
 
 
 def test_text_report_contains_core_findings():

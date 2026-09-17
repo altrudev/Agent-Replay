@@ -46,6 +46,33 @@ def _string_hint(meta: dict[str, Any], key: str, default: str = "") -> str:
     return value if isinstance(value, str) and value else default
 
 
+def _edge_meta(radial: dict[str, Any], src: str) -> dict[str, Any]:
+    """Return edge hints for one explicit parent without inventing semantics.
+
+    Flat radial fields remain the backwards-compatible defaults. A child with
+    multiple parents may provide ``radial.edges.<parent_id>`` overrides so one
+    evidence object does not accidentally assign the same relation/boundary
+    semantics to every incoming edge.
+    """
+    raw_edges = radial.get("edges")
+    if raw_edges is None:
+        return radial
+    if not isinstance(raw_edges, dict):
+        raise ValueError("evidence.radial.edges must be an object")
+
+    override = raw_edges.get(src)
+    if override is None:
+        return radial
+    if not isinstance(override, dict):
+        raise ValueError(
+            f"evidence.radial.edges.{src} must be an object"
+        )
+
+    merged = {key: value for key, value in radial.items() if key != "edges"}
+    merged.update(override)
+    return merged
+
+
 def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
     if incident.get("schema") != "agent-replay.incident.v2":
         raise ValueError("DDC Radial adapter requires agent-replay.incident.v2")
@@ -83,7 +110,11 @@ def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
                 "authority": _string_hint(radial, "authority", ""),
                 "representation": representation,
                 "consequence": _float_hint(radial, "consequence", 0.0),
-                "observable": bool(event.get("evidence")),
+                "observable": _bool_hint(
+                    radial,
+                    "observable",
+                    bool(event.get("evidence")),
+                ),
                 "reversible": _bool_hint(radial, "reversible", True),
             }
         )
@@ -99,26 +130,28 @@ def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
             if src not in by_id:
                 raise ValueError(f"unknown parent event: {src}->{dst}")
 
+            edge_radial = _edge_meta(child_radial, src)
+
             # Semantic edge relations are evidence, not a naming heuristic.
-            relation = _string_hint(child_radial, "relation", "depends_on")
+            relation = _string_hint(edge_radial, "relation", "depends_on")
 
             edges.append(
                 {
                     "src": src,
                     "dst": dst,
                     "relation": relation,
-                    "time_gap": _float_hint(child_radial, "time_gap", 0.0),
+                    "time_gap": _float_hint(edge_radial, "time_gap", 0.0),
                     "independently_mutable": _bool_hint(
-                        child_radial, "independently_mutable", False
+                        edge_radial, "independently_mutable", False
                     ),
                     "shared_atomic_boundary": _bool_hint(
-                        child_radial, "shared_atomic_boundary", True
+                        edge_radial, "shared_atomic_boundary", True
                     ),
                     "freshness_bound": _bool_hint(
-                        child_radial, "freshness_bound", False
+                        edge_radial, "freshness_bound", False
                     ),
                     "context_bound": _bool_hint(
-                        child_radial, "context_bound", True
+                        edge_radial, "context_bound", True
                     ),
                 }
             )
