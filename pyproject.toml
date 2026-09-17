@@ -23,4 +23,4 @@ agent-replay = "agent_replay.cli:main"
 where = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "service/tests"]
