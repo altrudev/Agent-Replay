@@ -188,3 +188,191 @@ def test_receipt_after_execution_does_not_establish_pre_execution_delivery():
     item = result["boundary_evidence"]["events"][0]
     assert item["revocation_receipt"]["status"] == "TEMPORAL_MISMATCH"
     assert result["boundary_evidence"]["verified_revocation_receipts"] == 0
+
+
+def test_authenticated_policy_without_receipt_keeps_delivery_unresolved():
+    signer = Ed25519PrivateKey.generate()
+    expected = {"execution_permitted": False}
+    policy_payload = {
+        "policy_id": "pay-policy",
+        "policy_version": "18",
+        "authority_version": "18",
+        "event_id": "exec-1",
+        "subject": "payment",
+        "action": "execute",
+        "authority_scope": "payment:123",
+        "expected_sha256": hashlib.sha256(_canonical(expected)).hexdigest(),
+    }
+    records = [{
+        "event_id": "exec-1",
+        "timestamp": "2026-09-17T21:00:00Z",
+        "actor": "executor",
+        "kind": "execution_decision",
+        "expected": expected,
+        "observed": {"execution_permitted": True},
+        "evidence": {"policy_proof": _signed(signer, "policy-key", policy_payload)},
+    }]
+    result = reconstruct_records(
+        records,
+        input_sha256="0" * 64,
+        trust_store={"policy-key": _public_b64(signer)},
+    )
+    item = result["boundary_evidence"]["events"][0]
+    assert item["policy"]["status"] == "VERIFIED"
+    assert item["revocation_receipt"]["status"] == "NOT_SUPPLIED"
+    assert result["boundary_evidence"]["authenticated_expectation_events"] == 1
+    assert result["boundary_evidence"]["verified_revocation_receipts"] == 0
+    assert result["first_provable_divergence"]["event_id"] == "exec-1"
+
+
+def test_verified_boundary_with_blocked_execution_has_no_divergence():
+    signer = Ed25519PrivateKey.generate()
+    boundary = Ed25519PrivateKey.generate()
+    expected = {"execution_permitted": False}
+    policy_payload = {
+        "policy_id": "pay-policy",
+        "policy_version": "18",
+        "authority_version": "18",
+        "event_id": "exec-1",
+        "subject": "payment",
+        "action": "execute",
+        "authority_scope": "payment:123",
+        "expected_sha256": hashlib.sha256(_canonical(expected)).hexdigest(),
+    }
+    revocation_digest = _event_digest(
+        "rev-evt",
+        "2026-09-17T20:58:00.000000Z",
+        "authority",
+        "authority_revoked",
+        observed={"authority_version": "18"},
+    )
+    receipt_payload = {
+        "revocation_id": "rev-1",
+        "authority_version": "18",
+        "execution_boundary_id": "payment-boundary",
+        "received_at": "2026-09-17T20:59:00Z",
+        "policy_id": "pay-policy",
+        "policy_version": "18",
+        "policy_sha256": hashlib.sha256(_canonical(policy_payload)).hexdigest(),
+        "revocation_sha256": revocation_digest,
+        "revocation_event_id": "rev-evt",
+        "nonce": "n-block",
+    }
+    records = [{
+        "event_id": "rev-evt",
+        "timestamp": "2026-09-17T20:58:00Z",
+        "actor": "authority",
+        "kind": "authority_revoked",
+        "observed": {"authority_version": "18"},
+    }, {
+        "event_id": "exec-1",
+        "timestamp": "2026-09-17T21:00:00Z",
+        "actor": "executor",
+        "kind": "execution_decision",
+        "expected": expected,
+        "observed": {"execution_permitted": False},
+        "evidence": {
+            "policy_proof": _signed(signer, "policy-key", policy_payload),
+            "revocation_receipt": _signed(boundary, "boundary-key", receipt_payload),
+        },
+    }]
+    result = reconstruct_records(
+        records,
+        input_sha256="0" * 64,
+        trust_store={
+            "policy-key": _public_b64(signer),
+            "boundary-key": _public_b64(boundary),
+        },
+    )
+    assert result["first_provable_divergence"] is None
+    assert result["boundary_evidence"]["authenticated_expectation_events"] == 1
+    assert result["boundary_evidence"]["verified_revocation_receipts"] == 1
+
+
+def test_signed_payload_with_float_fails_closed():
+    signer = Ed25519PrivateKey.generate()
+    expected = {"execution_permitted": False}
+    payload = {
+        "policy_id": "pay-policy",
+        "policy_version": "18",
+        "authority_version": "18",
+        "event_id": "exec-1",
+        "subject": "payment",
+        "action": "execute",
+        "authority_scope": {"amount": 750.0},
+        "expected_sha256": hashlib.sha256(_canonical(expected)).hexdigest(),
+    }
+    records = [{
+        "event_id": "exec-1",
+        "timestamp": "2026-09-17T21:00:00Z",
+        "actor": "executor",
+        "kind": "execution_decision",
+        "expected": expected,
+        "observed": {"execution_permitted": True},
+        "evidence": {"policy_proof": _signed(signer, "policy-key", payload)},
+    }]
+    result = reconstruct_records(
+        records,
+        input_sha256="0" * 64,
+        trust_store={"policy-key": _public_b64(signer)},
+    )
+    assert result["boundary_evidence"]["events"][0]["policy"]["status"] == "INVALID_REPRESENTATION"
+
+
+def test_same_receipt_can_be_reused_but_nonce_payload_collision_is_rejected():
+    boundary = Ed25519PrivateKey.generate()
+    revocation_digest = _event_digest(
+        "rev-evt",
+        "2026-09-17T20:58:00.000000Z",
+        "authority",
+        "authority_revoked",
+        observed={"authority_version": "18"},
+    )
+    base = {
+        "revocation_id": "rev-1",
+        "authority_version": "18",
+        "execution_boundary_id": "payment-boundary",
+        "received_at": "2026-09-17T20:59:00Z",
+        "policy_id": "pay-policy",
+        "policy_version": "18",
+        "policy_sha256": "c" * 64,
+        "revocation_sha256": revocation_digest,
+        "revocation_event_id": "rev-evt",
+        "nonce": "same-nonce",
+    }
+    first_receipt = _signed(boundary, "boundary-key", base)
+    altered = dict(base)
+    altered["revocation_id"] = "rev-2"
+    second_receipt = _signed(boundary, "boundary-key", altered)
+    records = [{
+        "event_id": "rev-evt",
+        "timestamp": "2026-09-17T20:58:00Z",
+        "actor": "authority",
+        "kind": "authority_revoked",
+        "observed": {"authority_version": "18"},
+    }, {
+        "event_id": "exec-1",
+        "timestamp": "2026-09-17T21:00:00Z",
+        "actor": "executor",
+        "kind": "execution_decision",
+        "expected": {"execution_permitted": False},
+        "observed": {"execution_permitted": True},
+        "evidence": {"revocation_receipt": first_receipt},
+    }, {
+        "event_id": "exec-2",
+        "timestamp": "2026-09-17T21:01:00Z",
+        "actor": "executor",
+        "kind": "execution_decision",
+        "expected": {"execution_permitted": False},
+        "observed": {"execution_permitted": True},
+        "evidence": {"revocation_receipt": second_receipt},
+    }]
+    result = reconstruct_records(
+        records,
+        input_sha256="0" * 64,
+        trust_store={"boundary-key": _public_b64(boundary)},
+    )
+    items = result["boundary_evidence"]["events"]
+    assert items[0]["revocation_receipt"]["status"] == "VERIFIED"
+    assert items[1]["revocation_receipt"]["status"] == "NONCE_COLLISION"
+    assert result["boundary_evidence"]["verified_revocation_receipts"] == 1
