@@ -43,11 +43,15 @@ Agent Replay intentionally distinguishes evidence from proof:
 - TRACE verification depends on the caller-supplied trusted key and the supported `agentrust-trace` verifier.
 - `DDC_RADIAL_ROOT` points to executable local Python source. Treat that checkout as trusted code.
 
+The governing evidentiary principles are frozen separately in [EVIDENCE_CONTRACT.md](EVIDENCE_CONTRACT.md). Where implementation behavior and the Evidence Contract differ, that difference is a defect or an explicitly documented compatibility limitation; it must not be silently normalized into a stronger claim.
+
 ## Resource limits
 
 Agent Replay does not yet impose configurable hard limits on evidence file size, event count, graph width, or report size. Do not process untrusted, arbitrarily large inputs in a privileged environment.
 
 For hostile or untrusted evidence, run Agent Replay in an OS-level sandbox/container with bounded memory, CPU, file access, and execution time.
+
+Resource bounding is a required hardening item before exposing Agent Replay as a public remote processor.
 
 ## Optional DDC integration
 
@@ -65,6 +69,6 @@ The adapter hashes and executes the same byte buffer and records its SHA-256 in 
 
 Core Agent Replay has no runtime third-party dependencies.
 
-Optional TRACE support is version bounded to the compatible `agentrust-trace` 0.5.x series.
+Optional TRACE support is pinned to `agentrust-trace==0.9.0` by the current package metadata. Security documentation and release notes must be updated together if that supported verifier version changes.
 
 Development/schema validation dependencies are optional and are not required for normal reconstruction.
