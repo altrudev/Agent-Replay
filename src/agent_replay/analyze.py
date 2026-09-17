@@ -157,3 +157,49 @@ def confidence(
     if any(item["relationship"] == "EXPLICITLY_DOWNSTREAM" for item in chain[1:]):
         return "HIGH"
     return "MEDIUM"
+
+
+def evidence_gaps(
+    events: list[CanonicalEvent],
+    divergences: list[dict[str, Any]],
+    chain: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return limits in the supplied evidence without inventing missing facts.
+
+    This stays domain-neutral: callers decide which assertions are expected.
+    Agent Replay only identifies events that cannot be assessed and causal
+    relationships that are temporal rather than explicitly evidenced.
+    """
+    gaps: list[dict[str, Any]] = []
+
+    for event in events:
+        if not event.expected:
+            gaps.append(
+                {
+                    "type": "UNASSESSED_EVENT",
+                    "event_id": event.event_id,
+                    "kind": event.kind,
+                    "actor": event.actor,
+                    "basis": "event has no caller-supplied expected-state assertion",
+                    "effect": "Agent Replay cannot establish validity or divergence for this event",
+                }
+            )
+
+    divergent_ids = {item["event_id"] for item in divergences}
+    for item in chain:
+        if (
+            item["event_id"] in divergent_ids
+            and item["relationship"] == "TEMPORALLY_DOWNSTREAM"
+        ):
+            gaps.append(
+                {
+                    "type": "MISSING_CAUSAL_LINK",
+                    "event_id": item["event_id"],
+                    "kind": item["kind"],
+                    "actor": item["actor"],
+                    "basis": "divergence is later in time but has no explicit divergent ancestor",
+                    "effect": "temporal order must not be presented as proof of causation",
+                }
+            )
+
+    return gaps
