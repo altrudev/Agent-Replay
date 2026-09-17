@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 
+from .boundary import load_trust_store
 from .normalize import (
     DEFAULT_MAX_BYTES,
     DEFAULT_MAX_DEPTH,
@@ -85,6 +86,7 @@ def _add_limits(parser: argparse.ArgumentParser) -> None:
 
 def _reconstruct_input(args) -> dict:
     fmt = _detect_format(args.input) if args.format == "auto" else args.format
+    trust_store = load_trust_store(getattr(args, "trust_store", None))
     if fmt == "jsonl":
         if args.trace_id:
             raise ValueError("--trace-id is only valid with OTLP input")
@@ -94,6 +96,7 @@ def _reconstruct_input(args) -> dict:
             max_events=args.max_events,
             max_parents=args.max_parents,
             max_depth=args.max_depth,
+            trust_store=trust_store,
         )
         incident["input_format"] = "canonical-jsonl"
         return incident
@@ -111,6 +114,7 @@ def _reconstruct_input(args) -> dict:
         max_events=args.max_events,
         max_parents=args.max_parents,
         max_depth=args.max_depth,
+        trust_store=trust_store,
     )
     incident["input_format"] = "otlp-json"
     if args.trace_id:
@@ -211,6 +215,7 @@ def main():
     reconstruct_parser.add_argument("-o", "--output", help="output path; default stdout")
     reconstruct_parser.add_argument("--trace-record")
     reconstruct_parser.add_argument("--trace-key")
+    reconstruct_parser.add_argument("--trust-store", help="JSON map of key_id to base64 Ed25519 public key")
     _add_limits(reconstruct_parser)
 
     reproduce_parser = sub.add_parser("reproduce", help="Re-run evidence and compare deterministic reconstruction outputs")
@@ -220,6 +225,7 @@ def main():
     reproduce_parser.add_argument("--trace-id")
     reproduce_parser.add_argument("--trace-record", help="TRACE record used by the original incident, when applicable")
     reproduce_parser.add_argument("--trace-key", help="caller-supplied trusted TRACE key used by the original incident")
+    reproduce_parser.add_argument("--trust-store", help="JSON map of key_id to base64 Ed25519 public key")
     reproduce_parser.add_argument("-o", "--output", help="output path; default stdout")
     _add_limits(reproduce_parser)
 
