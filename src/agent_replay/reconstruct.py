@@ -107,7 +107,8 @@ def reconstruct_events(
     gaps = evidence_gaps(events, divergences, chain)
     boundary = assess_boundary_evidence(events, trust_store=trust_store)
 
-    return {
+    boundary_active = boundary["trust_store_configured"] or bool(boundary["events"])
+    result = {
         "schema": "agent-replay.incident.v2",
         "input_sha256": input_sha256,
         "canonical_sha256": _canonical_digest(events),
@@ -116,8 +117,12 @@ def reconstruct_events(
         "expectation_scope": (
             "MIXED_PROVENANCE: expected-state values remain caller-supplied unless "
             "boundary_evidence marks the event policy VERIFIED against a caller-trusted key."
+            if boundary_active
+            else (
+                "CALLER_SUPPLIED_ASSERTIONS: expected-state values are supplied by "
+                "the input evidence and are not independently authenticated by Agent Replay."
+            )
         ),
-        "boundary_evidence": boundary,
         "timeline": _timeline(events),
         "first_provable_divergence": divergences[0] if divergences else None,
         "divergences": divergences,
@@ -145,6 +150,9 @@ def reconstruct_events(
             "DIVERGENCE_RECONSTRUCTED" if divergences else "NO_DIVERGENCE_ESTABLISHED"
         ),
     }
+    if boundary_active:
+        result["boundary_evidence"] = boundary
+    return result
 
 
 def reconstruct_records(
