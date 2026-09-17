@@ -7,6 +7,7 @@ from pathlib import Path
 from .otel import write_canonical_jsonl
 from .reconstruct import reconstruct
 from .report import render_text
+from .share import write_share_bundle
 from .trace import render_trace_summary, verify_trace_record
 
 
@@ -107,6 +108,18 @@ def main():
         help="canonical JSONL output path",
     )
 
+    share_parser = sub.add_parser(
+        "export-share",
+        help="Create an allowlist-only evidence bundle safe for external sharing",
+    )
+    share_parser.add_argument("incident", help="machine-readable Agent Replay incident JSON")
+    share_parser.add_argument("-o", "--output", required=True, help="output JSON path")
+    share_parser.add_argument("--radial", help="optional DDC Radial JSON review")
+    share_parser.add_argument(
+        "--agent-replay-commit",
+        help="optional Agent Replay commit identifier to bind into the public bundle",
+    )
+
     args = parser.parse_args()
 
     if args.command == "ingest" and args.ingest_format == "otel":
@@ -124,6 +137,16 @@ def main():
             print(json.dumps(summary, indent=2, sort_keys=True))
         else:
             print(render_trace_summary(summary))
+        return
+
+    if args.command == "export-share":
+        target = write_share_bundle(
+            args.incident,
+            args.output,
+            radial_path=args.radial,
+            agent_replay_commit=args.agent_replay_commit,
+        )
+        print(str(target))
         return
 
     if args.command == "reconstruct":
