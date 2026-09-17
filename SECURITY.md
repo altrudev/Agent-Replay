@@ -2,7 +2,7 @@
 
 ## Supported release
 
-The current supported development line is Agent Replay 0.4.x.
+The current supported development line is Agent Replay 0.5.x.
 
 ## Reporting a vulnerability
 
@@ -11,7 +11,7 @@ Please report security issues privately to the repository owner before public di
 - affected version or commit,
 - reproduction steps,
 - expected versus observed behavior,
-- whether the issue concerns evidence integrity, parsing, provenance, trust boundaries, or the optional DDC/TRACE integrations.
+- whether the issue concerns evidence integrity, parsing, provenance, trust boundaries, resource bounding, or the optional DDC/TRACE integrations.
 
 Do not include real credentials, secrets, production customer data, or private incident evidence in a public issue.
 
@@ -19,17 +19,11 @@ Do not include real credentials, secrets, production customer data, or private i
 
 Agent Replay is a local CLI and does not require a hosted service for core reconstruction. Evidence files may still contain sensitive information.
 
-Before sharing an incident bundle, review and redact:
+Raw incident JSON is an internal evidence artifact and can contain expected/observed values, evidence metadata, actor labels, timestamps, TRACE summaries, file paths, customer identifiers, or other confidential material. Do not treat it as safe to publish.
 
-- API keys and bearer tokens,
-- cookies and session identifiers,
-- customer identifiers,
-- payment data,
-- prompts containing confidential data,
-- tool inputs/outputs containing secrets,
-- internal URLs, hostnames, file paths, and infrastructure metadata.
+For external sharing, use the allowlist-only export path documented in [docs/SECURE_SHARING.md](docs/SECURE_SHARING.md). Public exports pseudonymize semantic identifiers, omit raw evidence and timestamps, and redact assertion values by default. `--include-values` is an explicit disclosure opt-in, not the default.
 
-Agent Replay currently does not automatically redact sensitive values from `expected`, `observed`, evidence metadata, TRACE summaries, or reports.
+The final public bundle is scanned for common bearer tokens, credential-shaped values, `/home/...` paths, IP addresses, and email addresses. This scan is defense in depth, not proof that an opted-in value is non-confidential.
 
 ## Trust boundaries
 
@@ -39,6 +33,7 @@ Agent Replay intentionally distinguishes evidence from proof:
 - Actor labels are evidence labels, not independently authenticated identities.
 - OpenTelemetry `parentSpanId` is ancestry, not causality, unless `agent.replay.causal_parent=true` is explicitly supplied.
 - DDC Radial findings are non-authoritative candidate hypotheses.
+- DDC Radial mappings distinguish `EXPLICIT`, `INFERRED`, and `DEFAULT` provenance; inferred/defaulted mappings must not be presented as supplied evidence.
 - `agent.replay.radial.*` / `evidence.radial` structural hints may be caller supplied and are not independently authenticated.
 - TRACE verification depends on the caller-supplied trusted key and the supported `agentrust-trace` verifier.
 - `DDC_RADIAL_ROOT` points to executable local Python source. Treat that checkout as trusted code.
@@ -47,11 +42,18 @@ The governing evidentiary principles are frozen separately in [EVIDENCE_CONTRACT
 
 ## Resource limits
 
-Agent Replay does not yet impose configurable hard limits on evidence file size, event count, graph width, or report size. Do not process untrusted, arbitrarily large inputs in a privileged environment.
+Agent Replay 0.5 applies fail-closed default limits to untrusted evidence:
 
-For hostile or untrusted evidence, run Agent Replay in an OS-level sandbox/container with bounded memory, CPU, file access, and execution time.
+```text
+max input bytes   32 MiB
+max events        100,000
+max parents       64 per event
+max causal depth  4,096
+```
 
-Resource bounding is a required hardening item before exposing Agent Replay as a public remote processor.
+The reconstruction CLI exposes explicit limit overrides for reviewed workloads. Raising a limit increases the caller's resource-exhaustion exposure and should be treated as an operational decision rather than an input request.
+
+These limits bound important attack surfaces but do not replace OS-level isolation. For hostile evidence, use an OS-level sandbox/container with bounded memory, CPU, filesystem access, and execution time.
 
 ## Optional DDC integration
 
