@@ -5,7 +5,7 @@
   "type": "object",
   "required": [
     "schema", "input_sha256", "canonical_sha256", "event_count",
-    "expectation_coverage", "expectation_scope", "boundary_evidence", "timeline",
+    "expectation_coverage", "expectation_scope", "timeline",
     "first_provable_divergence", "divergences", "causal_chain",
     "attribution", "attribution_scope", "confidence", "confidence_scope",
     "evidence_gaps", "evidence_completeness", "evidence_completeness_scope",
