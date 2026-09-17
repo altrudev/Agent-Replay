@@ -46,13 +46,12 @@ fetch_exact() {
 fetch_exact DDC-Remote-Executor "$DDCRE_SHA" "$WORK/ddcre"
 bash "$WORK/ddcre/scripts/install-v05.sh" --expected-commit "$DDCRE_SHA" --enable
 
-python3 - "$DDCRE_SHA" <<'PY'
+python3 - <<'PY'
 from pathlib import Path
-import json, sys
+import json, os
 path=Path('/etc/ddcre/config.json')
-doc=json.loads(path.read_text())
-priv=doc.setdefault('privileged',{})
-priv['agent_replay.deploy']={
+st=path.stat(); doc=json.loads(path.read_text())
+doc.setdefault('privileged',{})['agent_replay.deploy']={
     'enabled': True,
     'request_dir': '/var/lib/ddcre/privileged/requests',
     'result_dir': '/var/lib/ddcre/privileged/results',
@@ -60,8 +59,7 @@ priv['agent_replay.deploy']={
 }
 tmp=path.with_suffix('.json.tmp')
 tmp.write_text(json.dumps(doc,sort_keys=True,indent=2)+'\n')
-tmp.chmod(0o640)
-tmp.replace(path)
+os.chown(tmp,st.st_uid,st.st_gid); os.chmod(tmp,st.st_mode & 0o777); tmp.replace(path)
 PY
 systemctl restart ddcre.timer
 systemctl start ddcre.service
@@ -71,9 +69,9 @@ bash "$WORK/dsr-control/scripts/install.sh" --expected-commit "$DSR_SHA"
 
 python3 - <<'PY'
 from pathlib import Path
-import json
+import json, os
 path=Path('/etc/dsr-control/ddcre-adapter.json')
-doc=json.loads(path.read_text())
+st=path.stat(); doc=json.loads(path.read_text())
 doc.setdefault('repo_aliases',{})['altrudev/Agent-Replay']='altrudev/Agent-Replay'
 doc.setdefault('profiles',{})['service.deploy.agent-replay/v1']={
     'action':'agent_replay.deploy',
@@ -81,8 +79,7 @@ doc.setdefault('profiles',{})['service.deploy.agent-replay/v1']={
 }
 tmp=path.with_suffix('.json.tmp')
 tmp.write_text(json.dumps(doc,sort_keys=True,indent=2)+'\n')
-tmp.chmod(0o640)
-tmp.replace(path)
+os.chown(tmp,st.st_uid,st.st_gid); os.chmod(tmp,st.st_mode & 0o777); tmp.replace(path)
 PY
 
 ENV=/etc/dsr-control/dsr-control.env
