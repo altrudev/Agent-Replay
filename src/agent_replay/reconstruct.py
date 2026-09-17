@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from .analyze import (
     attribution,
@@ -13,10 +13,18 @@ from .analyze import (
     evidence_gaps,
     mismatches,
 )
-from .normalize import normalize_jsonl
+from .model import CanonicalEvent
+from .normalize import (
+    DEFAULT_MAX_BYTES,
+    DEFAULT_MAX_DEPTH,
+    DEFAULT_MAX_EVENTS,
+    DEFAULT_MAX_PARENTS,
+    normalize_jsonl,
+    normalize_records,
+)
 
 
-def _timeline(events):
+def _timeline(events: list[CanonicalEvent]) -> list[dict[str, Any]]:
     out = []
     for event in events:
         mm = mismatches(event)
@@ -41,7 +49,7 @@ def _timeline(events):
     return out
 
 
-def _canonical_digest(events) -> str:
+def _canonical_digest(events: list[CanonicalEvent]) -> str:
     payload = [
         {
             "event_id": event.event_id,
@@ -64,7 +72,7 @@ def _canonical_digest(events) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _expectation_coverage(events) -> dict[str, Any]:
+def _expectation_coverage(events: list[CanonicalEvent]) -> dict[str, Any]:
     comparable = sum(1 for event in events if event.expected)
     total = len(events)
     if total == 0:
@@ -87,16 +95,18 @@ def _expectation_coverage(events) -> dict[str, Any]:
     }
 
 
-def reconstruct(path: str) -> dict[str, Any]:
-    source = Path(path)
-    events = normalize_jsonl(source)
+def reconstruct_events(
+    events: list[CanonicalEvent],
+    *,
+    input_sha256: str,
+) -> dict[str, Any]:
     divergences = build_divergences(events)
     chain = causal_chain(events, divergences)
     gaps = evidence_gaps(events, divergences, chain)
 
     return {
         "schema": "agent-replay.incident.v2",
-        "input_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "input_sha256": input_sha256,
         "canonical_sha256": _canonical_digest(events),
         "event_count": len(events),
         "expectation_coverage": _expectation_coverage(events),
@@ -131,3 +141,48 @@ def reconstruct(path: str) -> dict[str, Any]:
             "DIVERGENCE_RECONSTRUCTED" if divergences else "NO_DIVERGENCE_ESTABLISHED"
         ),
     }
+
+
+def reconstruct_records(
+    records: Iterable[dict[str, Any]],
+    *,
+    input_sha256: str,
+    max_events: int = DEFAULT_MAX_EVENTS,
+    max_parents: int = DEFAULT_MAX_PARENTS,
+    max_depth: int = DEFAULT_MAX_DEPTH,
+) -> dict[str, Any]:
+    events = normalize_records(
+        records,
+        max_events=max_events,
+        max_parents=max_parents,
+        max_depth=max_depth,
+    )
+    return reconstruct_events(events, input_sha256=input_sha256)
+
+
+def reconstruct(
+    path: str | Path,
+    *,
+    max_bytes: int = DEFAULT_MAX_BYTES,
+    max_events: int = DEFAULT_MAX_EVENTS,
+    max_parents: int = DEFAULT_MAX_PARENTS,
+    max_depth: int = DEFAULT_MAX_DEPTH,
+) -> dict[str, Any]:
+    source = Path(path)
+    raw = source.read_bytes()
+    if len(raw) > max_bytes:
+        from .normalize import EvidenceFormatError
+        raise EvidenceFormatError(
+            f"input size {len(raw)} exceeds max_bytes={max_bytes}"
+        )
+    events = normalize_jsonl(
+        source,
+        max_bytes=max_bytes,
+        max_events=max_events,
+        max_parents=max_parents,
+        max_depth=max_depth,
+    )
+    return reconstruct_events(
+        events,
+        input_sha256=hashlib.sha256(raw).hexdigest(),
+    )
