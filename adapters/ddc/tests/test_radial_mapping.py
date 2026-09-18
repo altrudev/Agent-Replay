@@ -2,6 +2,10 @@ import os
 
 import pytest
 
+import json
+from pathlib import Path
+
+from agent_replay.aps import reconstruct_aps_fixture
 from agent_replay.reconstruct import reconstruct
 from agent_replay_ddc.radial_mapping import incident_to_radial_spec
 from agent_replay_ddc.radial_runner import analyze_incident
@@ -207,3 +211,40 @@ def test_wrong_incident_schema_fails_closed():
         assert "agent-replay.incident.v2" in str(exc)
     else:
         raise AssertionError("wrong schema must fail closed")
+
+
+
+def test_aps_reconstruction_maps_structural_bindings_into_radial_graph():
+    source = Path("tests/fixtures/aps/oracle-safety-check-v1/pass.json")
+    report = reconstruct_aps_fixture(json.loads(source.read_text(encoding="utf-8")))
+    graph = incident_to_radial_spec(report)
+
+    node_ids = {node["id"] for node in graph["nodes"]}
+    edges = {(edge["src"], edge["dst"], edge["relation"]) for edge in graph["edges"]}
+
+    assert "aps:principal" in node_ids
+    assert "aps:delegation:1" in node_ids
+    assert "aps:delegation:2" in node_ids
+    assert "aps:intent" in node_ids
+    assert "aps:policy" in node_ids
+
+    assert ("aps:principal", "aps:delegation:1", "delegates") in edges
+    assert ("aps:delegation:1", "aps:delegation:2", "delegates") in edges
+    assert ("aps:delegation:2", "aps:intent", "authorizes_claim") in edges
+    assert ("aps:intent", "aps:policy", "receipt_precedes") in edges
+
+    provenance = [
+        value
+        for node in graph["nodes"]
+        for value in node["provenance"]["dimensions"].values()
+    ]
+    assert provenance
+    assert set(provenance) == {"EXPLICIT"}
+
+
+def test_aps_radial_graph_does_not_invent_execution_node_without_execution_evidence():
+    source = Path("tests/fixtures/aps/oracle-safety-check-v1/pass.json")
+    report = reconstruct_aps_fixture(json.loads(source.read_text(encoding="utf-8")))
+    graph = incident_to_radial_spec(report)
+
+    assert all(not node["id"].startswith("aps:execution:") for node in graph["nodes"])
