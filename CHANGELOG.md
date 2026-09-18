@@ -10,7 +10,7 @@ APS authority-reconstruction and evidence-boundary release.
 
 - First-class APS reconstruction for the pinned `oracle-safety-check-v1` fixture family.
 - Structural binding checks for action refs, receipt chaining, delegation refs, and delegation-chain continuity.
-- Monotonic execution-evidence states: `NOT_OBSERVED`, `EVIDENCE_PRESENT_UNBOUND`, `ACTION_BOUND`, and `ACTOR_BOUND`.
+- Monotonic execution-evidence states: `NOT_OBSERVED`, `EVIDENCE_PRESENT_UNBOUND`, `EVIDENCE_ACTION_BOUND`, and `EVIDENCE_ACTOR_BOUND`.
 - Dedicated APS reconstruction and public-share JSON Schemas.
 - Safe APS share bundles that pseudonymize identities and omit raw receipts, delegations, and execution events.
 - Optional DDC Radial structural mapping for APS authority/delegation/receipt relationships.
