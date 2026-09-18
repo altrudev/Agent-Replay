@@ -41,6 +41,21 @@ def load_fixture(name: str) -> dict:
     return json.loads((FIXTURE_DIR / f"{name}.json").read_text(encoding="utf-8"))
 
 
+def _git_blob_sha1(data: bytes) -> str:
+    header = f"blob {len(data)}\0".encode("ascii")
+    return hashlib.sha1(header + data).hexdigest()
+
+
+def test_vendored_fixtures_match_pinned_upstream_blob_hashes():
+    source = json.loads((FIXTURE_DIR / "SOURCE.json").read_text(encoding="utf-8"))
+    assert source["repository"] == APS_FIXTURE_REPOSITORY
+    assert source["revision"] == APS_FIXTURE_REVISION
+    assert set(source["git_blob_sha1"]) == {f"{name}.json" for name in EXPECTED}
+    for filename, expected_sha in source["git_blob_sha1"].items():
+        data = (FIXTURE_DIR / filename).read_bytes()
+        assert _git_blob_sha1(data) == expected_sha
+
+
 @pytest.mark.parametrize("name", sorted(EXPECTED))
 def test_real_pinned_fixture_matrix_preserves_evidence_boundaries(name: str):
     document = load_fixture(name)
