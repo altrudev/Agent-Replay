@@ -251,3 +251,52 @@ def test_action_ref_mismatch_is_preserved_not_inferred_away():
 def test_missing_envelope_fails_closed():
     with pytest.raises(ValueError, match="envelope"):
         reconstruct_aps_fixture({"fixture": "broken"})
+
+
+
+def test_cli_reconstructs_aps_json_in_plain_language(tmp_path, monkeypatch, capsys):
+    import json
+    import sys
+
+    from agent_replay import cli
+
+    source = tmp_path / "aps.json"
+    source.write_text(json.dumps(fixture("pass", "allowed")), encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["agent-replay", "reconstruct", str(source), "--format", "aps"],
+    )
+
+    cli.main()
+
+    output = capsys.readouterr().out
+    assert "AGENT REPLAY APS AUTHORITY RECONSTRUCTION" in output
+    assert "Claimed actor: did:aps:insight-agent-001" in output
+    assert "Authority status: VALID" in output
+    assert "Status: NOT_OBSERVED" in output
+    assert "Permit is execution: false" in output
+
+
+def test_cli_auto_detects_aps_envelope(tmp_path):
+    import json
+    from argparse import Namespace
+    from agent_replay import cli
+
+    source = tmp_path / "aps.json"
+    source.write_text(json.dumps(fixture("pass", "allowed")), encoding="utf-8")
+    args = Namespace(
+        input=str(source),
+        format="auto",
+        trace_id=None,
+        max_bytes=1024 * 1024,
+        max_events=100,
+        max_parents=10,
+        max_depth=10,
+    )
+
+    report = cli._reconstruct_input(args)
+
+    assert report["input_format"] == "aps-oracle-safety-check-v1"
+    assert report["execution_status"] == "NOT_OBSERVED"
+    assert len(report["input_sha256"]) == 64
