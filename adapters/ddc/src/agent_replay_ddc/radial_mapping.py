@@ -170,6 +170,17 @@ def _aps_to_radial_spec(report: dict[str, Any]) -> dict[str, Any]:
     binding = report.get("binding") if isinstance(report.get("binding"), dict) else {}
     execution = report.get("execution") if isinstance(report.get("execution"), dict) else {}
 
+    def explicit_provenance(dimensions: list[str]) -> dict[str, Any]:
+        return {
+            "dimensions": {dimension: "EXPLICIT" for dimension in dimensions},
+            "mutable": "EXPLICIT",
+            "authority": "EXPLICIT",
+            "representation": "EXPLICIT",
+            "consequence": "EXPLICIT",
+            "observable": "EXPLICIT",
+            "reversible": "EXPLICIT",
+        }
+
     nodes = [
         {
             "id": "aps:intent",
@@ -180,7 +191,7 @@ def _aps_to_radial_spec(report: dict[str, Any]) -> dict[str, Any]:
             "consequence": 0.0,
             "observable": True,
             "reversible": True,
-            "provenance": {key: "EXPLICIT" for key in ("mutable","authority","representation","consequence","observable","reversible")},
+            "provenance": explicit_provenance(["authority", "identity", "provenance", "representation"]),
         },
         {
             "id": "aps:delegation",
@@ -191,7 +202,7 @@ def _aps_to_radial_spec(report: dict[str, Any]) -> dict[str, Any]:
             "consequence": 0.5,
             "observable": bool(authority.get("delegation_path")),
             "reversible": True,
-            "provenance": {key: "EXPLICIT" for key in ("mutable","authority","representation","consequence","observable","reversible")},
+            "provenance": explicit_provenance(["authority", "policy", "provenance", "time"]),
         },
         {
             "id": "aps:policy",
@@ -202,7 +213,7 @@ def _aps_to_radial_spec(report: dict[str, Any]) -> dict[str, Any]:
             "consequence": 0.7,
             "observable": True,
             "reversible": True,
-            "provenance": {key: "EXPLICIT" for key in ("mutable","authority","representation","consequence","observable","reversible")},
+            "provenance": explicit_provenance(["authority", "policy", "provenance", "representation"]),
         },
         {
             "id": "aps:execution",
@@ -213,7 +224,7 @@ def _aps_to_radial_spec(report: dict[str, Any]) -> dict[str, Any]:
             "consequence": 1.0,
             "observable": bool(execution.get("events")),
             "reversible": False,
-            "provenance": {key: "EXPLICIT" for key in ("mutable","authority","representation","consequence","observable","reversible")},
+            "provenance": explicit_provenance(["action", "execution", "provenance", "observability"]),
         },
     ]
 
