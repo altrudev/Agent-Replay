@@ -75,6 +75,35 @@ def main() -> None:
         if not public.is_file() or not json.loads(public.read_text(encoding="utf-8")):
             raise SystemExit("installed-wheel public-share export missing or invalid")
 
+        aps_incident = temp / "aps-incident.json"
+        run([
+            str(agent_replay),
+            "reconstruct",
+            "tests/fixtures/aps-oracle-safety-check-v1/pass.json",
+            "--format",
+            "aps",
+            "--json",
+            "-o",
+            str(aps_incident),
+        ])
+        aps_doc = json.loads(aps_incident.read_text(encoding="utf-8"))
+        if aps_doc.get("execution_status") != "NO_EXECUTION_EVIDENCE":
+            raise SystemExit(
+                "installed-wheel APS reconstruction crossed execution boundary"
+            )
+
+        aps_public = temp / "aps-public-share.json"
+        run([
+            str(agent_replay),
+            "export-share",
+            str(aps_incident),
+            "-o",
+            str(aps_public),
+        ])
+        aps_share = json.loads(aps_public.read_text(encoding="utf-8"))
+        if aps_share.get("incident", {}).get("schema") != "agent-replay.public-aps-share.v1":
+            raise SystemExit("installed-wheel APS safe-share export missing or invalid")
+
     print("AGENT REPLAY RELEASE SMOKE PASS")
 
 
