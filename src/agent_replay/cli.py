@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 
+from .aps import reconstruct_aps_fixture
 from .normalize import (
     DEFAULT_MAX_BYTES,
     DEFAULT_MAX_DEPTH,
@@ -72,6 +73,14 @@ def _detect_format(path: str) -> str:
     if suffix in {".jsonl", ".ndjson"}:
         return "jsonl"
     if suffix == ".json":
+        try:
+            raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return "otel"
+        if isinstance(raw, dict) and isinstance(raw.get("envelope"), dict):
+            envelope = raw["envelope"]
+            if "intent" in envelope and "decision" in envelope and "delegations" in envelope:
+                return "aps"
         return "otel"
     return "jsonl"
 
@@ -85,6 +94,20 @@ def _add_limits(parser: argparse.ArgumentParser) -> None:
 
 def _reconstruct_input(args) -> dict:
     fmt = _detect_format(args.input) if args.format == "auto" else args.format
+    if fmt == "aps":
+        if args.trace_id:
+            raise ValueError("--trace-id is not valid with APS input")
+        raw = Path(args.input).read_bytes()
+        if len(raw) > args.max_bytes:
+            raise ValueError(f"input size {len(raw)} exceeds max_bytes={args.max_bytes}")
+        document = json.loads(raw.decode("utf-8"))
+        if not isinstance(document, dict):
+            raise ValueError("APS input must be a JSON object")
+        incident = reconstruct_aps_fixture(document)
+        incident["input_sha256"] = hashlib.sha256(raw).hexdigest()
+        incident["input_format"] = "aps-oracle-safety-check-v1"
+        return incident
+
     if fmt == "jsonl":
         if args.trace_id:
             raise ValueError("--trace-id is only valid with OTLP input")
@@ -205,7 +228,7 @@ def main():
 
     reconstruct_parser = sub.add_parser("reconstruct", help="Reconstruct an incident from canonical JSONL or OTLP JSON")
     reconstruct_parser.add_argument("input")
-    reconstruct_parser.add_argument("--format", choices=("auto", "jsonl", "otel"), default="auto")
+    reconstruct_parser.add_argument("--format", choices=("auto", "jsonl", "otel", "aps"), default="auto")
     reconstruct_parser.add_argument("--trace-id")
     reconstruct_parser.add_argument("--json", action="store_true")
     reconstruct_parser.add_argument("-o", "--output", help="output path; default stdout")
@@ -216,7 +239,7 @@ def main():
     reproduce_parser = sub.add_parser("reproduce", help="Re-run evidence and compare deterministic reconstruction outputs")
     reproduce_parser.add_argument("incident", help="previous machine-readable incident JSON")
     reproduce_parser.add_argument("evidence", help="source evidence to replay")
-    reproduce_parser.add_argument("--format", choices=("auto", "jsonl", "otel"), default="auto")
+    reproduce_parser.add_argument("--format", choices=("auto", "jsonl", "otel", "aps"), default="auto")
     reproduce_parser.add_argument("--trace-id")
     reproduce_parser.add_argument("--trace-record", help="TRACE record used by the original incident, when applicable")
     reproduce_parser.add_argument("--trace-key", help="caller-supplied trusted TRACE key used by the original incident")
