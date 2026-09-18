@@ -58,60 +58,66 @@ def _append_evidence_gaps(lines: list[str], report: dict[str, Any]) -> None:
 
 
 def _render_aps_text(report: dict[str, Any]) -> str:
-    source = report.get("source", {})
+    validation = report.get("adapter_validation", {})
+    provenance = report.get("input_provenance", {})
+    external = report.get("external_conformance", {})
     identity = report.get("identity", {})
     authority = report.get("authority", {})
     policy = report.get("policy", {})
-    binding = report.get("action_binding", {})
+    binding = report.get("binding", {})
+    execution = report.get("execution", {})
     boundary = report.get("evidence_boundary", {})
     lines = [
         "AGENT REPLAY APS AUTHORITY RECONSTRUCTION",
-        f"Fixture: {source.get('fixture')}",
-        f"Pinned APS revision: {source.get('pinned_revision')}",
-        f"APS conformance outcome: {source.get('external_conformance_outcome')}",
+        f"Fixture: {external.get('fixture')}",
+        f"Adapter validated against: {validation.get('repository')}@{validation.get('revision')}",
+        f"Input provenance: {provenance.get('provenance_status')}",
+        f"Input SHA-256: {report.get('input_sha256')}",
+        "",
+        "EXTERNAL APS CONFORMANCE",
+        f"Outcome: {external.get('outcome')}",
+        f"Authority status: {external.get('authority_status')}",
         "",
         "IDENTITY",
         f"Claimed actor: {identity.get('claimed_actor')}",
         f"Intent signer: {identity.get('intent_signer')}",
-        f"Intent authentication: {identity.get('intent_authentication')}",
+        f"Signer assessment: {identity.get('intent_signature_assessment')}",
+        f"Independent authentication: {identity.get('independent_authentication')}",
         "",
         "AUTHORITY",
         f"Root principal: {authority.get('root_principal')}",
-        f"Authority status: {authority.get('status')}",
-    ]
-    for index, link in enumerate(authority.get("delegation_path", []), 1):
-        lines.append(
-            f"- link {index}: {link.get('issuer')} -> {link.get('subject')} "
-            f"({link.get('delegation_id')})"
-        )
-    lines.extend([
+        f"Structural binding: {authority.get('structural_binding')}",
+        f"Independent crypto verification: {authority.get('independent_cryptographic_verification')}",
         "",
         "POLICY",
         f"Issuer: {policy.get('issuer')}",
         f"Signer: {policy.get('signer')}",
-        f"Authentication: {policy.get('authentication')}",
+        f"Signer assessment: {policy.get('signature_assessment')}",
         f"Verdict: {policy.get('verdict')}",
         "",
-        "ACTION BINDING",
-        f"Intent action_ref: {binding.get('intent_action_ref')}",
-        f"Decision action_ref: {binding.get('decision_action_ref')}",
-        f"Matched: {_fmt(binding.get('matched'))}",
+        "BINDING",
+        f"Status: {binding.get('status')}",
+    ]
+    for name, passed in (binding.get("checks") or {}).items():
+        lines.append(f"- {name}: {_fmt(passed)}")
+    lines.extend([
         "",
-        "OBSERVED EXECUTION",
-        f"Status: {report.get('execution_status')}",
-        f"Events: {len(report.get('observed_execution', []))}",
+        "EXECUTION EVIDENCE",
+        f"Status: {execution.get('status')}",
+        f"Bound events: {len(execution.get('bound_events', []))}",
+        f"Unbound events: {len(execution.get('unbound_events', []))}",
+        f"Independent authentication: {execution.get('independent_authentication')}",
         f"Permit is execution: {_fmt(boundary.get('permit_is_execution'))}",
         "",
         "EVIDENCE BOUNDARY",
     ])
-    for statement in boundary.get("can_establish", []):
-        lines.append(f"- CAN: {statement}")
-    for statement in boundary.get("cannot_establish", []):
-        lines.append(f"- CANNOT: {statement}")
+    for claim in boundary.get("claims", []):
+        lines.append(f"- {claim}")
     return "\n".join(lines)
 
+
 def render_text(report: dict[str, Any]) -> str:
-    if report.get("schema") == "agent-replay.aps-authority-reconstruction.v1":
+    if str(report.get("schema", "")).startswith("agent-replay.aps-authority-reconstruction."):
         return _render_aps_text(report)
     lines: list[str] = []
     first = report.get("first_provable_divergence")
