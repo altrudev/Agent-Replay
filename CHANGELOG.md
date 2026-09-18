@@ -2,6 +2,33 @@
 
 All notable changes to Agent Replay are documented here.
 
+## 0.6.0
+
+APS authority-reconstruction and evidence-boundary release.
+
+### Added
+
+- First-class APS reconstruction for the pinned `oracle-safety-check-v1` fixture family.
+- Structural binding checks for action refs, receipt chaining, delegation refs, and delegation-chain continuity.
+- Monotonic execution-evidence states: `NOT_OBSERVED`, `EVIDENCE_PRESENT_UNBOUND`, `ACTION_BOUND`, and `ACTOR_BOUND`.
+- Dedicated APS reconstruction and public-share JSON Schemas.
+- Safe APS share bundles that pseudonymize identities and omit raw receipts, delegations, and execution events.
+- Optional DDC Radial structural mapping for APS authority/delegation/receipt relationships.
+- Vendored copies of all 13 pinned APS conformance fixtures in the release test suite.
+
+### Changed
+
+- APS external conformance outcomes are now separated from Agent Replay verification claims.
+- The adapter revision it was tested against is no longer emitted as provenance for arbitrary APS inputs.
+- APS execution is no longer considered observed merely because an `execution_events` list is non-empty.
+- Core and DDC adapter release versions advance together to `0.6.0`.
+- Clean-wheel release smoke now exercises APS reconstruction and APS public sharing.
+- Canonical, OTLP, and APS evidence paths reject oversized files before reading them; CLI hashing is streamed.
+
+### Evidence boundary
+
+Agent Replay still does not independently verify APS Ed25519/EIP-712 signatures. Structural binding and external APS conformance remain separately labeled. A policy permit is never treated as evidence of execution.
+
 ## 0.5.1
 
 Assurance-closure patch following the v0.5.0 post-release sweep.
