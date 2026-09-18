@@ -23,6 +23,11 @@ Run DDC Radial directly against an Agent Replay incident document:
 ```bash
 agent-replay reconstruct examples/refund-750/events.jsonl --json \
   | agent-replay-ddc-radial
+
+# APS structural review
+agent-replay-ddc review \
+  tests/fixtures/aps/oracle-safety-check-v1/pass.json \
+  --format aps
 ```
 
 Or connect it through the generic Agent Replay DDC bridge:
@@ -34,9 +39,9 @@ agent-replay-ddc verify examples/refund-750/events.jsonl
 
 ## Semantics
 
-The adapter maps Agent Replay's canonical event graph into DDC Radial Frequency nodes and edges.
+The adapter maps both Agent Replay canonical incident graphs and hardened APS authority reconstructions into DDC Radial Frequency nodes and edges.
 
-Radial structural properties must come from supplied evidence. Actor names, event names, and mismatch labels are not silently promoted into authority domains, state independence, atomicity, or consequence claims.
+Radial structural properties must come from supplied evidence. Actor names, event names, receipt labels, and APS signer claims are not silently promoted into authority domains, state independence, atomicity, temporal order, or consequence claims. APS edges are limited to evidenced delegation links, receipt links, delegation-ref binding, and shared action context.
 
 Simple one-parent events may place edge hints directly in `evidence.radial`. For a child with multiple parents, use explicit per-parent overrides so different incoming relationships are not collapsed into one semantic edge:
 
