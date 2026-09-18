@@ -221,3 +221,44 @@ def test_cli_auto_detects_real_aps_envelope():
     assert report["input_format"] == "aps-oracle-safety-check-v1"
     assert report["execution"]["status"] == "NOT_OBSERVED"
     assert report["source"]["input_provenance"]["sha256"] == report["input_sha256"]
+
+
+
+def test_partial_input_provenance_stays_partial_and_unverified():
+    document, raw = load_case("pass")
+    report = reconstruct_aps_fixture(
+        document,
+        input_sha256=hashlib.sha256(raw).hexdigest(),
+        input_provenance={"repository": APS_FIXTURE_REPOSITORY},
+    )
+
+    provenance = report["source"]["input_provenance"]
+    assert provenance["provenance_status"] == "PARTIAL"
+    assert provenance["revision"] is None
+    assert provenance["verification"] == "CALLER_SUPPLIED_NOT_VERIFIED"
+
+
+def test_cli_preserves_explicit_aps_provenance(monkeypatch):
+    from argparse import Namespace
+
+    source = FIXTURE_ROOT / "pass.json"
+    args = Namespace(
+        input=str(source),
+        format="aps",
+        trace_id=None,
+        max_bytes=1024 * 1024,
+        max_events=100,
+        max_parents=10,
+        max_depth=10,
+        source_repository=APS_FIXTURE_REPOSITORY,
+        source_revision=APS_FIXTURE_REVISION,
+        source_path="fixtures/cross-stack/oracle-safety-check/oracle-safety-check-v1/pass.json",
+    )
+
+    report = cli._reconstruct_input(args)
+    provenance = report["source"]["input_provenance"]
+
+    assert provenance["provenance_status"] == "SUPPLIED"
+    assert provenance["repository"] == APS_FIXTURE_REPOSITORY
+    assert provenance["revision"] == APS_FIXTURE_REVISION
+    assert provenance["verification"] == "CALLER_SUPPLIED_NOT_VERIFIED"
