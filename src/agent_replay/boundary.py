@@ -177,11 +177,6 @@ def _policy_assessment(
         ))
         if missing:
             result.update(status="INVALID_PROOF", basis="signed policy proof missing required fields: " + ", ".join(missing))
-        elif observed_representation_error:
-            result.update(
-                status="INVALID_REPRESENTATION",
-                basis=observed_representation_error,
-            )
         elif payload.get("event_id") != event.event_id:
             result.update(status="BINDING_MISMATCH", basis="signed policy proof is bound to a different event_id")
         elif payload.get("expected_sha256") != expected_sha256:
@@ -343,6 +338,11 @@ def _evaluation_assessment(
             result.update(
                 status="INVALID_PROOF",
                 basis="signed execution evaluation missing required fields: " + ", ".join(missing),
+            )
+        elif observed_representation_error:
+            result.update(
+                status="INVALID_REPRESENTATION",
+                basis=observed_representation_error,
             )
         elif payload.get("event_id") != event.event_id:
             result.update(
