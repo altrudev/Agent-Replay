@@ -1,70 +1,50 @@
 # APS authority reconstruction adapter
 
-This adapter maps Agent Passport System (APS) pre-action evidence into an Agent Replay authority reconstruction without collapsing identity, authority, policy, and execution into a single actor claim.
+Agent Replay v0.6 maps APS pre-action evidence into an authority-safe reconstruction without collapsing identity, delegation, policy, and execution.
 
-## Pinned interoperability fixture
+## Validated fixture line
 
-The regression contract is based on:
+The adapter regression suite vendors the exact 13 cases from:
 
 - repository: `Agent-Authority-Conformance/aps-conformance-suite`
 - revision: `6e8b05b202d727ef18e84e100fc31db11f36529f`
-- fixture family: `fixtures/cross-stack/oracle-safety-check/oracle-safety-check-v1`
+- family: `fixtures/cross-stack/oracle-safety-check/oracle-safety-check-v1`
 
-The pinned family contains 13 cases:
+This revision identifies what the adapter was validated against. It is **not** automatically asserted as provenance of a user-supplied APS file.
 
-`pass`, `caution`, `danger`, `block`, `expired-oracle`,
-`tampered-oracle`, `wrong-signer`, `authority-denied`,
-`sig-tampered`, `digest-mismatch`, `evidence-missing`,
-`delegation-expired`, and `delegation-revoked`.
+## Evidence layers
 
-## Evidence model
+Replay preserves five boundaries:
 
-Replay keeps these layers independent:
+1. claimed actor / receipt signer,
+2. delegated authority chain,
+3. policy decision,
+4. structural binding across action, receipt and delegation references,
+5. execution evidence.
 
-1. **Claimed actor** — the subject/issuer named by the action-intent receipt.
-2. **Receipt signer** — the signer identity carried by the supplied receipt.
-3. **Delegated authority** — the principal-rooted APS delegation path.
-4. **Policy decision** — the gateway's pre-dispatch permit/deny result.
-5. **Observed execution** — post-dispatch/post-execution evidence only.
+External APS conformance outcomes are preserved under `external_conformance`. Replay separately records whether it independently verified cryptography; v0.6 reports `NOT_VERIFIED` for Ed25519/EIP-712 verification.
 
-A valid permit is never promoted into execution evidence.
+## Execution rule
 
-## Cryptographic boundary
+A permit is not execution evidence.
 
-`agent_replay.aps.reconstruct_aps_fixture()` does not implement an
-independent Ed25519 or EIP-712 verifier. It preserves the APS fixture's
-external conformance outcome and reasons, and labels receipt identity
-consistency separately.
-
-This matters for negative fixtures. For example, `sig-tampered` can
-preserve the claimed gateway identity while reporting that APS's fixture
-oracle says the decision signature failed.
-
-## Expected no-execution result
-
-The current APS fixture is pre-dispatch and contains no post-execution
-receipt/event. Therefore every pinned case must reconstruct:
+Execution states are:
 
 ```text
-observed_execution: []
-execution_status: NOT_OBSERVED
-permit_is_execution: false
+NO_EXECUTION_EVIDENCE
+EXECUTION_EVIDENCE_UNBOUND
+EXECUTION_EVIDENCE_PARTIALLY_BOUND
+EXECUTION_EVIDENCE_BOUND_TO_ACTION
 ```
 
-That empty result is intentional evidence, not a missing feature.
+An execution event is only counted as bound when its `action_ref` matches the reconstructed action and its actor does not contradict the claimed actor. This still does not make the event cryptographically authenticated.
 
-## Python API
+## Usage
 
-```python
-import json
-from agent_replay.aps import reconstruct_aps_fixture
-
-with open("pass.json", "r", encoding="utf-8") as fh:
-    fixture = json.load(fh)
-
-report = reconstruct_aps_fixture(fixture)
+```bash
+agent-replay reconstruct fixture.json --format aps
+agent-replay reconstruct fixture.json --format aps --json -o aps-incident.json
+agent-replay export-share aps-incident.json -o aps-public-share.json
 ```
 
-The returned document uses schema:
-
-`agent-replay.aps-authority-reconstruction.v1`
+The optional DDC adapter also accepts `--format aps` and maps the reconstruction into a delegation → intent → policy → execution evidence graph for non-authoritative Radial review.

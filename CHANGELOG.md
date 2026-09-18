@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.6.0
+
+APS authority-separation and evidence-boundary hardening.
+
+### Added
+
+- APS authority reconstruction v2 with separate external conformance, structural binding, independent-verification scope, and graded execution evidence.
+- Exact vendored regression copies of all 13 pinned APS oracle-safety-check fixtures.
+- Public JSON Schemas for APS reconstruction and APS-safe sharing.
+- APS-safe share export with pseudonymized identities and raw receipt/delegation/execution omission.
+- APS → DDC Radial evidence-graph mapping across delegation, intent, policy, and execution boundaries.
+- APS reconstruction and safe-share checks in the clean-wheel release smoke gate.
+
+### Fixed
+
+- Adapter validation revision is no longer presented as provenance of arbitrary APS input.
+- A non-empty `execution_events` list no longer automatically becomes observed execution.
+- APS binding now checks action_ref, receipt prev-link, delegation_ref/leaf binding, and delegation-chain continuity.
+- External APS `expected`/reason fields are preserved as external conformance evidence rather than represented as independent Replay verification.
+- `export-share` now handles APS explicitly instead of silently projecting it through the core incident schema.
+
 All notable changes to Agent Replay are documented here.
 
 ## 0.5.1

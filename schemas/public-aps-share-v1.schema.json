@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-replay.dev/schemas/public-aps-share-v1.schema.json",
+  "title": "Agent Replay Public APS Share v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "source_schema",
+    "source_input_sha256",
+    "external_conformance",
+    "identity",
+    "authority",
+    "policy",
+    "binding",
+    "execution",
+    "evidence_boundary",
+    "redaction"
+  ],
+  "properties": {
+    "schema": {
+      "const": "agent-replay.public-aps-share.v1"
+    },
+    "source_schema": {
+      "const": "agent-replay.aps-authority-reconstruction.v2"
+    },
+    "source_input_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "external_conformance": {
+      "type": "object"
+    },
+    "identity": {
+      "type": "object"
+    },
+    "authority": {
+      "type": "object"
+    },
+    "policy": {
+      "type": "object"
+    },
+    "binding": {
+      "type": "object"
+    },
+    "execution": {
+      "type": "object",
+      "required": [
+        "status",
+        "bound_event_count",
+        "unbound_event_count",
+        "malformed_event_count",
+        "independent_authentication"
+      ],
+      "properties": {
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "bound_event_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unbound_event_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "malformed_event_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "independent_authentication": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "evidence_boundary": {
+      "type": "object"
+    },
+    "redaction": {
+      "type": "object",
+      "required": [
+        "identities_pseudonymized",
+        "raw_receipts_omitted",
+        "raw_delegations_omitted",
+        "raw_execution_events_omitted"
+      ]
+    }
+  }
+}

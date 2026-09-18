@@ -4,6 +4,14 @@
 
 The current supported development line is Agent Replay 0.5.x.
 
+## APS evidence boundary
+
+APS inputs are treated as untrusted evidence. Agent Replay v0.6 distinguishes the adapter revision it was validated against from the provenance of the supplied input file. Caller-supplied APS conformance fields are preserved as external claims; they are not treated as independent Replay cryptographic verification.
+
+A policy permit is not execution evidence. Execution events must bind to the same action reference and must not contradict the claimed actor before they are represented as action-bound execution evidence. Even then, v0.6 does not claim independent Ed25519/EIP-712 authentication.
+
+Malformed delegation objects fail closed. Malformed or unbound execution entries remain unbound evidence rather than being promoted into observed execution.
+
 ## Reporting a vulnerability
 
 Please report security issues privately to the repository owner before public disclosure. Include:

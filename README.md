@@ -8,10 +8,34 @@ Agent Replay answers a narrow forensic question:
 
 It is **not** an observability platform, agent runtime, policy engine, or monitoring service.
 
-Current hardening line: **v0.5.1**.
+Current hardening line: **v0.6.0**.
 
 - See [CHANGELOG.md](CHANGELOG.md) for release history.
 - See [SECURITY.md](SECURITY.md) before processing sensitive or untrusted evidence.
+
+## v0.6 — authority-safe APS interoperability
+
+Agent Replay now accepts APS oracle-safety-check evidence without collapsing claims, authority, policy, and execution into one status.
+
+```bash
+agent-replay reconstruct fixture.json --format aps
+agent-replay reconstruct fixture.json --format aps --json -o aps-incident.json
+agent-replay export-share aps-incident.json -o aps-public-share.json
+```
+
+The APS reconstruction separates:
+
+- adapter validation provenance from the provenance of the supplied input,
+- external APS conformance from Replay's own structural checks,
+- claimed signer identity from independent cryptographic verification,
+- action, receipt, delegation-chain, and policy binding,
+- pre-dispatch permit decisions from post-dispatch execution evidence.
+
+Execution evidence is graded as `NO_EXECUTION_EVIDENCE`, `EXECUTION_EVIDENCE_UNBOUND`, `EXECUTION_EVIDENCE_PARTIALLY_BOUND`, or `EXECUTION_EVIDENCE_BOUND_TO_ACTION`. Agent Replay does not currently claim independent Ed25519/EIP-712 verification.
+
+The optional DDC adapter can map APS reconstruction into an evidence graph with explicit delegation → intent → policy → execution boundaries. Radial findings remain non-authoritative candidate hypotheses.
+
+The release regression suite vendors the exact 13 APS fixtures from `Agent-Authority-Conformance/aps-conformance-suite@6e8b05b202d727ef18e84e100fc31db11f36529f`.
 
 ## v0.5 — hardened replay and safer evidence handling
 
@@ -412,7 +436,9 @@ Deleting `adapters/ddc/` leaves Agent Replay fully functional.
 
 ```text
 schemas/incident-v2.schema.json
+schemas/aps-authority-reconstruction-v2.schema.json
 schemas/public-share-v1.schema.json
+schemas/public-aps-share-v1.schema.json
 schemas/public-radial-review-v1.schema.json
 schemas/share-bundle-v1.schema.json
 ```

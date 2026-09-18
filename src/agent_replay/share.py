@@ -79,6 +79,15 @@ def _safe_scalar(value: Any) -> Any:
     return "[REDACTED_COMPLEX_VALUE]"
 
 
+def _safe_token(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    if re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", text):
+        return text
+    return "[REDACTED_TOKEN]"
+
+
 def _value_type(value: Any) -> str:
     if value is None:
         return "null"
@@ -190,6 +199,81 @@ def sanitize_incident(incident: dict[str, Any], *, include_values: bool = False)
     }
 
 
+
+def sanitize_aps_reconstruction(report: dict[str, Any]) -> dict[str, Any]:
+    identity = report.get("identity") if isinstance(report.get("identity"), dict) else {}
+    authority = report.get("authority") if isinstance(report.get("authority"), dict) else {}
+    policy = report.get("policy") if isinstance(report.get("policy"), dict) else {}
+    binding = report.get("binding") if isinstance(report.get("binding"), dict) else {}
+    execution = report.get("execution") if isinstance(report.get("execution"), dict) else {}
+    external = report.get("external_conformance") if isinstance(report.get("external_conformance"), dict) else {}
+
+    actor_values = [
+        value for value in (
+            identity.get("claimed_actor"),
+            identity.get("intent_issuer"),
+            identity.get("intent_signer"),
+            authority.get("root_principal"),
+            policy.get("issuer"),
+            policy.get("signer"),
+        ) if isinstance(value, str) and value
+    ]
+    aliases = _stable_aliases(actor_values, "identity")
+
+    return {
+        "schema": "agent-replay.public-aps-share.v1",
+        "source_schema": report.get("schema"),
+        "source_input_sha256": report.get("input_sha256"),
+        "external_conformance": {
+            "outcome": _safe_token(external.get("outcome")),
+            "authority_status": _safe_token(external.get("authority_status")),
+            "reason_codes": [_safe_token(item) for item in (external.get("reasons") or [])],
+        },
+        "identity": {
+            "claimed_actor": aliases.get(str(identity.get("claimed_actor", "")), "identity-unknown"),
+            "intent_signer": aliases.get(str(identity.get("intent_signer", "")), "identity-unknown"),
+            "signature_assessment": _safe_token(identity.get("intent_signature_assessment")),
+            "independent_authentication": _safe_token(identity.get("independent_authentication")),
+        },
+        "authority": {
+            "root_principal": aliases.get(str(authority.get("root_principal", "")), "identity-unknown"),
+            "structural_binding": _safe_token(authority.get("structural_binding")),
+            "independent_cryptographic_verification": _safe_token(authority.get("independent_cryptographic_verification")),
+        },
+        "policy": {
+            "issuer": aliases.get(str(policy.get("issuer", "")), "identity-unknown"),
+            "signer": aliases.get(str(policy.get("signer", "")), "identity-unknown"),
+            "signature_assessment": _safe_token(policy.get("signature_assessment")),
+            "verdict": _safe_token(policy.get("verdict")),
+            "independent_authentication": _safe_token(policy.get("independent_authentication")),
+        },
+        "binding": {
+            "status": _safe_token(binding.get("status")),
+            "checks": dict(binding.get("checks") or {}),
+        },
+        "execution": {
+            "status": _safe_token(execution.get("status")),
+            "bound_event_count": len(execution.get("bound_events") or []),
+            "unbound_event_count": len(execution.get("unbound_events") or []),
+            "malformed_event_count": int(execution.get("malformed_event_count") or 0),
+            "independent_authentication": _safe_token(execution.get("independent_authentication")),
+        },
+        "evidence_boundary": {
+            "permit_is_execution": False,
+            "external_conformance_is_replay_verification": False,
+            "independent_crypto_verification_performed": False,
+        },
+        "redaction": {
+            "identities_pseudonymized": True,
+            "raw_receipts_omitted": True,
+            "raw_delegations_omitted": True,
+            "raw_execution_events_omitted": True,
+            "timestamps_omitted": True,
+            "free_text_reason_omitted": True,
+        },
+    }
+
+
 def sanitize_radial(review: dict[str, Any]) -> dict[str, Any]:
     source = review.get("engine_source") if isinstance(review.get("engine_source"), dict) else {}
     hypotheses = [item for item in review.get("hypotheses") or [] if isinstance(item, dict)]
@@ -223,7 +307,15 @@ def _fail_if_sensitive(value: Any) -> None:
 
 
 def build_share_bundle(incident: dict[str, Any], radial: dict[str, Any] | None = None, *, agent_replay_commit: str | None = None, include_values: bool = False) -> dict[str, Any]:
-    public_incident = sanitize_incident(incident, include_values=include_values)
+    schema = incident.get("schema")
+    if schema == "agent-replay.incident.v2":
+        public_incident = sanitize_incident(incident, include_values=include_values)
+    elif schema == "agent-replay.aps-authority-reconstruction.v2":
+        if include_values:
+            raise ValueError("--include-values is not applicable to APS authority reconstructions")
+        public_incident = sanitize_aps_reconstruction(incident)
+    else:
+        raise ValueError(f"unsupported incident schema for sharing: {schema!r}")
     public_radial = sanitize_radial(radial) if radial is not None else None
     bundle: dict[str, Any] = {
         "schema": "agent-replay.share-bundle.v1",

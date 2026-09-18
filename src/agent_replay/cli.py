@@ -46,7 +46,11 @@ def _emit(value, as_json: bool, output: str | None = None):
 
 
 def _sha256(path: str | Path) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _supplementary_bundle_sha256(incident: dict, trace_summary: dict) -> str:
@@ -100,14 +104,16 @@ def _reconstruct_input(args) -> dict:
     if fmt == "aps":
         if args.trace_id:
             raise ValueError("--trace-id is not valid with APS input")
-        raw = Path(args.input).read_bytes()
-        if len(raw) > args.max_bytes:
-            raise ValueError(f"input size {len(raw)} exceeds max_bytes={args.max_bytes}")
+        source = Path(args.input)
+        size = source.stat().st_size
+        if size > args.max_bytes:
+            raise ValueError(f"input size {size} exceeds max_bytes={args.max_bytes}")
+        raw = source.read_bytes()
         document = json.loads(raw.decode("utf-8"))
         if not isinstance(document, dict):
             raise ValueError("APS input must be a JSON object")
-        incident = reconstruct_aps_fixture(document)
-        incident["input_sha256"] = hashlib.sha256(raw).hexdigest()
+        input_sha256 = hashlib.sha256(raw).hexdigest()
+        incident = reconstruct_aps_fixture(document, input_sha256=input_sha256)
         incident["input_format"] = "aps-oracle-safety-check-v1"
         return incident
 
@@ -124,6 +130,10 @@ def _reconstruct_input(args) -> dict:
         incident["input_format"] = "canonical-jsonl"
         return incident
 
+    source = Path(args.input)
+    size = source.stat().st_size
+    if size > args.max_bytes:
+        raise ValueError(f"input size {size} exceeds max_bytes={args.max_bytes}")
     original_sha256 = _sha256(args.input)
     events = load_otlp_json(
         args.input,
@@ -203,7 +213,7 @@ def _run(args, parser: argparse.ArgumentParser) -> None:
             parser.error("--trace-record and --trace-key must be supplied together")
         incident = _reconstruct_input(args)
         if args.trace_record:
-            if incident.get("schema") == "agent-replay.aps-authority-reconstruction.v1":
+            if str(incident.get("schema", "")).startswith("agent-replay.aps-authority-reconstruction."):
                 raise ValueError("TRACE supplementary evidence is not supported for APS reconstruction")
             _attach_trace_evidence(incident, args.trace_record, args.trace_key)
         _emit(incident, args.json, args.output)

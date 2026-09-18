@@ -70,3 +70,16 @@ def test_reproducibility_reports_drift():
     result = compare_reconstruction(expected, observed)
     assert result["status"] == "DRIFTED"
     assert result["differences"] == ["canonical_sha256"]
+
+
+
+def test_reconstruct_rejects_oversized_input_before_reading_bytes(tmp_path: Path, monkeypatch):
+    path = tmp_path / "events.jsonl"
+    path.write_text(json.dumps(_event("a")) + "\n", encoding="utf-8")
+
+    def explode(_self):
+        raise AssertionError("read_bytes must not run for oversized input")
+
+    monkeypatch.setattr(Path, "read_bytes", explode)
+    with pytest.raises(EvidenceFormatError, match="max_bytes=1"):
+        reconstruct(path, max_bytes=1)

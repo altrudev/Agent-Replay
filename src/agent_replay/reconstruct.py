@@ -169,12 +169,13 @@ def reconstruct(
     max_depth: int = DEFAULT_MAX_DEPTH,
 ) -> dict[str, Any]:
     source = Path(path)
-    raw = source.read_bytes()
-    if len(raw) > max_bytes:
+    size = source.stat().st_size
+    if size > max_bytes:
         from .normalize import EvidenceFormatError
         raise EvidenceFormatError(
-            f"input size {len(raw)} exceeds max_bytes={max_bytes}"
+            f"input size {size} exceeds max_bytes={max_bytes}"
         )
+    raw = source.read_bytes()
     events = normalize_jsonl(
         source,
         max_bytes=max_bytes,
