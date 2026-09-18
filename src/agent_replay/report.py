@@ -59,47 +59,57 @@ def _append_evidence_gaps(lines: list[str], report: dict[str, Any]) -> None:
 
 def _render_aps_text(report: dict[str, Any]) -> str:
     source = report.get("source", {})
+    tested = source.get("adapter_tested_against", {})
+    provenance = source.get("input_provenance", {})
+    conformance = source.get("external_conformance", {})
     identity = report.get("identity", {})
     authority = report.get("authority", {})
     policy = report.get("policy", {})
-    binding = report.get("action_binding", {})
+    binding = report.get("binding", {})
+    execution = report.get("execution", {})
     boundary = report.get("evidence_boundary", {})
     lines = [
         "AGENT REPLAY APS AUTHORITY RECONSTRUCTION",
-        f"Fixture: {source.get('fixture')}",
-        f"Pinned APS revision: {source.get('pinned_revision')}",
-        f"APS conformance outcome: {source.get('external_conformance_outcome')}",
+        f"Fixture label: {source.get('fixture')}",
+        f"Input SHA-256: {provenance.get('sha256')}",
+        f"Input provenance: {provenance.get('provenance_status')}",
+        f"Adapter tested against APS revision: {tested.get('revision')}",
+        f"External APS conformance: {conformance.get('outcome')}",
         "",
         "IDENTITY",
         f"Claimed actor: {identity.get('claimed_actor')}",
-        f"Intent signer: {identity.get('intent_signer')}",
+        f"Intent signer claim: {identity.get('intent_signer')}",
         f"Intent authentication: {identity.get('intent_authentication')}",
         "",
         "AUTHORITY",
         f"Root principal: {authority.get('root_principal')}",
-        f"Authority status: {authority.get('status')}",
+        f"Evidence status: {authority.get('evidence_status')}",
+        f"External disposition: {authority.get('external_conformance_disposition')}",
+        f"Replay verification: {authority.get('replay_verification')}",
     ]
     for index, link in enumerate(authority.get("delegation_path", []), 1):
-        lines.append(
-            f"- link {index}: {link.get('issuer')} -> {link.get('subject')} "
-            f"({link.get('delegation_id')})"
-        )
+        lines.append(f"- link {index}: {link.get('issuer')} -> {link.get('subject')} ({link.get('delegation_id')})")
     lines.extend([
+        "",
+        "BINDING",
+        f"Overall: {binding.get('status')}",
+        f"Action ref matched: {_fmt((binding.get('action_ref') or {}).get('matched'))}",
+        f"Receipt link matched: {_fmt((binding.get('receipt_link') or {}).get('matched'))}",
+        f"Delegation ref matched: {_fmt((binding.get('delegation_ref') or {}).get('matched'))}",
+        f"Delegation chain continuous: {_fmt(binding.get('delegation_chain_continuity'))}",
         "",
         "POLICY",
         f"Issuer: {policy.get('issuer')}",
-        f"Signer: {policy.get('signer')}",
+        f"Signer claim: {policy.get('signer')}",
         f"Authentication: {policy.get('authentication')}",
         f"Verdict: {policy.get('verdict')}",
         "",
-        "ACTION BINDING",
-        f"Intent action_ref: {binding.get('intent_action_ref')}",
-        f"Decision action_ref: {binding.get('decision_action_ref')}",
-        f"Matched: {_fmt(binding.get('matched'))}",
-        "",
-        "OBSERVED EXECUTION",
-        f"Status: {report.get('execution_status')}",
-        f"Events: {len(report.get('observed_execution', []))}",
+        "EXECUTION",
+        f"Status: {execution.get('status')}",
+        f"Evidence events: {execution.get('evidence_count')}",
+        f"Action-bound events: {execution.get('action_bound_count')}",
+        f"Actor-bound events: {execution.get('actor_bound_count')}",
+        f"Cryptographic authentication: {execution.get('cryptographic_authentication')}",
         f"Permit is execution: {_fmt(boundary.get('permit_is_execution'))}",
         "",
         "EVIDENCE BOUNDARY",
