@@ -73,6 +73,7 @@ def _render_aps_text(report: dict[str, Any]) -> str:
         f"Fixture label: {source.get('fixture')}",
         f"Input SHA-256: {provenance.get('sha256')}",
         f"Input provenance: {provenance.get('provenance_status')}",
+        f"Input provenance verification: {provenance.get('verification')}",
         f"Adapter tested against APS revision: {tested.get('revision')}",
         f"External APS conformance: {conformance.get('outcome')}",
         "",
