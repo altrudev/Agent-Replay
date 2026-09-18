@@ -135,7 +135,7 @@ def test_action_bound_execution_does_not_upgrade_actor():
 
     report = reconstruct_aps_fixture(document)
 
-    assert report["execution"]["status"] == "ACTION_BOUND"
+    assert report["execution"]["status"] == "EVIDENCE_ACTION_BOUND"
     assert report["execution"]["action_bound_count"] == 1
     assert report["execution"]["actor_bound_count"] == 0
 
@@ -152,7 +152,7 @@ def test_actor_bound_execution_is_still_not_cryptographically_authenticated():
 
     report = reconstruct_aps_fixture(document)
 
-    assert report["execution"]["status"] == "ACTOR_BOUND"
+    assert report["execution"]["status"] == "EVIDENCE_ACTOR_BOUND"
     assert report["execution"]["actor_bound_count"] == 1
     assert report["execution"]["cryptographic_authentication"] == "NOT_VERIFIED"
 
