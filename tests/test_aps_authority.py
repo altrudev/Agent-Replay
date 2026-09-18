@@ -167,7 +167,7 @@ def test_execution_requires_action_binding_and_actor_consistency():
 
     report = reconstruct_aps_fixture(document)
 
-    assert report["execution_status"] == "EXECUTION_BOUND_TO_ACTION"
+    assert report["execution_status"] == "EXECUTION_EVIDENCE_BOUND_TO_ACTION"
     assert len(report["observed_execution"]) == 1
     assert report["execution"]["independent_authentication"] == "NOT_VERIFIED"
 
