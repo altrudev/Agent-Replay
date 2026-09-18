@@ -258,6 +258,173 @@ def _receipt_assessment(
     return result
 
 
+def _evaluation_assessment(
+    event: CanonicalEvent,
+    *,
+    trust_store: Mapping[str, str],
+    policy: dict[str, Any],
+    receipt: dict[str, Any],
+) -> dict[str, Any]:
+    status, basis, payload = _verify_envelope(
+        event.evidence.get("execution_evaluation"),
+        trust_store=trust_store,
+    )
+    result: dict[str, Any] = {"status": status, "basis": basis}
+    if payload is None:
+        return result
+
+    result["key_id"] = event.evidence.get("execution_evaluation", {}).get("key_id")
+    for field in (
+        "evaluation_id",
+        "event_id",
+        "execution_boundary_id",
+        "evaluated_at",
+        "authority_state",
+        "authority_version",
+        "policy_id",
+        "policy_version",
+        "policy_sha256",
+        "revocation_receipt_sha256",
+        "observed_sha256",
+    ):
+        if field in payload:
+            result[field] = payload[field]
+
+    if status == "VERIFIED":
+        missing = _missing_fields(payload, (
+            "evaluation_id", "event_id", "execution_boundary_id",
+            "evaluated_at", "authority_state", "authority_version",
+            "policy_id", "policy_version", "policy_sha256",
+            "revocation_receipt_sha256", "observed_sha256",
+        ))
+        evaluated_at = _parse_time(payload.get("evaluated_at"))
+        event_time = _parse_time(event.timestamp)
+        receipt_payload = event.evidence.get("revocation_receipt", {}).get("payload", {})
+        receipt_digest = sha256_json(receipt_payload) if isinstance(receipt_payload, dict) else None
+        receipt_time = _parse_time(receipt.get("received_at"))
+        observed_sha256 = sha256_json(event.observed)
+
+        if missing:
+            result.update(
+                status="INVALID_PROOF",
+                basis="signed execution evaluation missing required fields: " + ", ".join(missing),
+            )
+        elif payload.get("event_id") != event.event_id:
+            result.update(
+                status="BINDING_MISMATCH",
+                basis="signed execution evaluation is bound to a different event_id",
+            )
+        elif evaluated_at is None:
+            result.update(
+                status="INVALID_PROOF",
+                basis="evaluated_at is missing or invalid",
+            )
+        elif event_time and evaluated_at > event_time:
+            result.update(
+                status="TEMPORAL_MISMATCH",
+                basis="evaluation claims to occur after the execution event",
+            )
+        elif receipt.get("status") != "VERIFIED":
+            result.update(
+                status="UNVERIFIED_INPUT",
+                basis="execution evaluation references revocation delivery that is not independently verified",
+            )
+        elif receipt_time and evaluated_at < receipt_time:
+            result.update(
+                status="TEMPORAL_MISMATCH",
+                basis="execution evaluation predates verified revocation delivery",
+            )
+        elif payload.get("revocation_receipt_sha256") != receipt_digest:
+            result.update(
+                status="BINDING_MISMATCH",
+                basis="execution evaluation does not bind the verified revocation receipt",
+            )
+        elif payload.get("execution_boundary_id") != receipt.get("execution_boundary_id"):
+            result.update(
+                status="BINDING_MISMATCH",
+                basis="execution evaluation and revocation receipt name different execution boundaries",
+            )
+        elif payload.get("observed_sha256") != observed_sha256:
+            result.update(
+                status="BINDING_MISMATCH",
+                basis="execution evaluation does not bind this event's observed decision state",
+            )
+        elif policy.get("status") == "VERIFIED" and (
+            payload.get("policy_id") != policy.get("policy_id")
+            or payload.get("policy_version") != policy.get("policy_version")
+            or payload.get("policy_sha256") != policy.get("policy_sha256")
+            or payload.get("authority_version") != policy.get("authority_version")
+        ):
+            result.update(
+                status="BINDING_MISMATCH",
+                basis="execution evaluation is bound to a different policy or authority version",
+            )
+        elif (
+            payload.get("policy_id") != receipt.get("policy_id")
+            or payload.get("policy_version") != receipt.get("policy_version")
+            or payload.get("policy_sha256") != receipt.get("policy_sha256")
+            or payload.get("authority_version") != receipt.get("authority_version")
+        ):
+            result.update(
+                status="BINDING_MISMATCH",
+                basis="execution evaluation is inconsistent with the verified revocation receipt",
+            )
+        else:
+            result["basis"] = (
+                "signed execution evaluation verified, occurred after verified revocation delivery, "
+                "and is bound to this event's observed decision state"
+            )
+    return result
+
+
+def _enforcement_assessment(
+    event: CanonicalEvent,
+    *,
+    policy: dict[str, Any],
+    receipt: dict[str, Any],
+    evaluation: dict[str, Any],
+) -> dict[str, Any]:
+    if receipt.get("status") != "VERIFIED":
+        return {
+            "status": "DELIVERY_UNVERIFIED",
+            "basis": "revocation delivery to the execution boundary is not independently verified",
+        }
+    if evaluation.get("status") != "VERIFIED":
+        return {
+            "status": "DELIVERY_VERIFIED_EVALUATION_UNRESOLVED",
+            "basis": (
+                "revocation delivery is verified, but no verified execution-time evaluation "
+                "establishes that the boundary used the received state"
+            ),
+        }
+    if policy.get("status") != "VERIFIED":
+        return {
+            "status": "EVALUATION_VERIFIED_EXPECTATION_UNAUTHENTICATED",
+            "basis": (
+                "execution-time evaluation is verified, but the expected behavior is not "
+                "independently authenticated"
+            ),
+        }
+
+    expected = event.expected
+    observed = event.observed
+    if expected == observed:
+        return {
+            "status": "ENFORCEMENT_CONSISTENT",
+            "basis": (
+                "verified delivery and execution-time evaluation are bound to an observed "
+                "decision consistent with the authenticated expected state"
+            ),
+        }
+    return {
+        "status": "ENFORCEMENT_DIVERGED",
+        "basis": (
+            "verified delivery and execution-time evaluation are bound to an observed "
+            "decision that diverges from the authenticated expected state"
+        ),
+    }
+
+
 def assess_boundary_evidence(
     events: list[CanonicalEvent],
     *,
@@ -267,6 +434,9 @@ def assess_boundary_evidence(
     assessments: list[dict[str, Any]] = []
     authenticated_expectations = 0
     verified_receipts = 0
+    verified_evaluations = 0
+    enforcement_consistent = 0
+    enforcement_diverged = 0
     events_by_id = {event.event_id: event for event in events}
     seen_receipt_nonces: dict[tuple[str, str], str] = {}
     verified_receipt_digests: set[str] = set()
@@ -279,6 +449,19 @@ def assess_boundary_evidence(
             policy=policy,
             events_by_id=events_by_id,
         )
+        evaluation = _evaluation_assessment(
+            event,
+            trust_store=trusted,
+            policy=policy,
+            receipt=receipt,
+        )
+        enforcement = _enforcement_assessment(
+            event,
+            policy=policy,
+            receipt=receipt,
+            evaluation=evaluation,
+        )
+
         if receipt["status"] == "VERIFIED":
             nonce_key = (str(receipt.get("key_id", "")), str(receipt.get("nonce", "")))
             receipt_digest = sha256_json(
@@ -296,6 +479,12 @@ def assess_boundary_evidence(
                 seen_receipt_nonces[nonce_key] = receipt_digest
         if policy["status"] == "VERIFIED":
             authenticated_expectations += 1
+        if evaluation["status"] == "VERIFIED":
+            verified_evaluations += 1
+        if enforcement["status"] == "ENFORCEMENT_CONSISTENT":
+            enforcement_consistent += 1
+        elif enforcement["status"] == "ENFORCEMENT_DIVERGED":
+            enforcement_diverged += 1
         if receipt["status"] == "VERIFIED":
             receipt_digest = sha256_json(
                 event.evidence.get("revocation_receipt", {}).get("payload", {})
@@ -303,13 +492,19 @@ def assess_boundary_evidence(
             if receipt_digest not in verified_receipt_digests:
                 verified_receipt_digests.add(receipt_digest)
                 verified_receipts += 1
-        if policy["status"] != "NOT_SUPPLIED" or receipt["status"] != "NOT_SUPPLIED":
+        if (
+            policy["status"] != "NOT_SUPPLIED"
+            or receipt["status"] != "NOT_SUPPLIED"
+            or evaluation["status"] != "NOT_SUPPLIED"
+        ):
             assessments.append(
                 {
                     "event_id": event.event_id,
                     "kind": event.kind,
                     "policy": policy,
                     "revocation_receipt": receipt,
+                    "execution_evaluation": evaluation,
+                    "enforcement": enforcement,
                 }
             )
 
@@ -318,6 +513,9 @@ def assess_boundary_evidence(
         "trust_store_configured": bool(trusted),
         "authenticated_expectation_events": authenticated_expectations,
         "verified_revocation_receipts": verified_receipts,
+        "verified_execution_evaluations": verified_evaluations,
+        "enforcement_consistent_events": enforcement_consistent,
+        "enforcement_diverged_events": enforcement_diverged,
         "events": assessments,
         "replay_scope": "INCIDENT_LOCAL_ONLY",
         "canonicalization": (
@@ -328,9 +526,12 @@ def assess_boundary_evidence(
             "Cryptographic verification establishes integrity and binding to caller-trusted "
             "Ed25519 keys. Agent Replay does not decide whether a trusted signer was entitled "
             "to define policy or revoke authority beyond the supplied trust configuration. "
-            "A verified receipt proves delivery to the signed execution_boundary_id; linking "
-            "a later execution event to that same real-world boundary still depends on the "
-            "identity evidence supplied for the execution event. Within one incident, "
+            "A verified receipt proves delivery to the signed execution_boundary_id. A verified "
+            "execution evaluation separately proves that the same named boundary evaluated after "
+            "that delivery and bound the evaluation to the observed decision state. Enforcement "
+            "consistency is assessed only when policy, delivery, and evaluation are all verified. "
+            "Linking these signed identities to the same real-world component still depends on "
+            "the caller's trust configuration and supplied identity evidence. Within one incident, "
             "reusing the same verified receipt is allowed, while the same key_id and nonce "
             "with different signed payloads is rejected as a nonce collision. Cross-incident "
             "replay prevention belongs to the issuing boundary or a persistent verifier."
