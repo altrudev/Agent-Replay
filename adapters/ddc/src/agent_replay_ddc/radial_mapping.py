@@ -211,7 +211,7 @@ def _aps_to_radial_spec(report: dict[str, Any]) -> dict[str, Any]:
             "authority": "",
             "representation": "aps:execution-evidence",
             "consequence": 1.0,
-            "observable": bool(execution.get("bound_events")),
+            "observable": bool(execution.get("events")),
             "reversible": False,
             "provenance": {key: "EXPLICIT" for key in ("mutable","authority","representation","consequence","observable","reversible")},
         },
@@ -222,13 +222,15 @@ def _aps_to_radial_spec(report: dict[str, Any]) -> dict[str, Any]:
         {
             "src": "aps:delegation", "dst": "aps:intent", "relation": "authorizes",
             "time_gap": 0.0, "independently_mutable": True,
-            "shared_atomic_boundary": False, "freshness_bound": True, "context_bound": True,
+            "shared_atomic_boundary": False, "freshness_bound": True,
+            "context_bound": bool(checks.get("delegation_ref") and checks.get("delegation_chain")),
             "provenance": {key: "EXPLICIT" for key in ("relation","time_gap","independently_mutable","shared_atomic_boundary","freshness_bound","context_bound")},
         },
         {
             "src": "aps:intent", "dst": "aps:policy", "relation": "evaluated_by",
             "time_gap": 0.0, "independently_mutable": True,
-            "shared_atomic_boundary": False, "freshness_bound": True, "context_bound": bool(checks.get("action_ref") and checks.get("receipt_link")),
+            "shared_atomic_boundary": False, "freshness_bound": True,
+            "context_bound": bool(checks.get("action_ref") and checks.get("receipt_link") and checks.get("delegation_ref")),
             "provenance": {key: "EXPLICIT" for key in ("relation","time_gap","independently_mutable","shared_atomic_boundary","freshness_bound","context_bound")},
         },
         {
