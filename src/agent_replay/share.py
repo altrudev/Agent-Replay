@@ -135,7 +135,88 @@ def _safe_event(item: dict[str, Any], actor_aliases: dict[str, str], event_alias
     return out
 
 
+def sanitize_aps_reconstruction(report: dict[str, Any]) -> dict[str, Any]:
+    source = report.get("source") if isinstance(report.get("source"), dict) else {}
+    tested = source.get("adapter_tested_against") if isinstance(source.get("adapter_tested_against"), dict) else {}
+    provenance = source.get("input_provenance") if isinstance(source.get("input_provenance"), dict) else {}
+    conformance = source.get("external_conformance") if isinstance(source.get("external_conformance"), dict) else {}
+    identity = report.get("identity") if isinstance(report.get("identity"), dict) else {}
+    authority = report.get("authority") if isinstance(report.get("authority"), dict) else {}
+    policy = report.get("policy") if isinstance(report.get("policy"), dict) else {}
+    binding = report.get("binding") if isinstance(report.get("binding"), dict) else {}
+    execution = report.get("execution") if isinstance(report.get("execution"), dict) else {}
+
+    identities = [
+        value for value in (
+            identity.get("claimed_actor"), identity.get("intent_issuer"), identity.get("intent_signer"),
+            authority.get("root_principal"), policy.get("issuer"), policy.get("signer"),
+        ) if isinstance(value, str) and value
+    ]
+    aliases = _stable_aliases(identities, "actor")
+
+    def alias(value: Any) -> str | None:
+        return aliases.get(value) if isinstance(value, str) else None
+
+    return {
+        "schema": "agent-replay.public-aps-authority.v1",
+        "source_schema": report.get("schema"),
+        "source_input_sha256": provenance.get("sha256") or report.get("input_sha256"),
+        "adapter_tested_revision": tested.get("revision"),
+        "external_conformance": {
+            "outcome": conformance.get("outcome"),
+            "authority_disposition": conformance.get("authority_disposition"),
+            "scope": conformance.get("scope"),
+        },
+        "identity": {
+            "claimed_actor": alias(identity.get("claimed_actor")),
+            "intent_issuer": alias(identity.get("intent_issuer")),
+            "intent_signer": alias(identity.get("intent_signer")),
+            "intent_authentication": identity.get("intent_authentication"),
+        },
+        "authority": {
+            "root_principal": alias(authority.get("root_principal")),
+            "evidence_status": authority.get("evidence_status"),
+            "external_conformance_disposition": authority.get("external_conformance_disposition"),
+            "replay_verification": authority.get("replay_verification"),
+            "delegation_link_count": len(authority.get("delegation_path") or []),
+            "chain_continuity": authority.get("chain_continuity"),
+        },
+        "policy": {
+            "issuer": alias(policy.get("issuer")),
+            "signer": alias(policy.get("signer")),
+            "authentication": policy.get("authentication"),
+            "verdict": policy.get("verdict"),
+        },
+        "binding": {
+            "status": binding.get("status"),
+            "action_ref_matched": (binding.get("action_ref") or {}).get("matched"),
+            "receipt_link_matched": (binding.get("receipt_link") or {}).get("matched"),
+            "delegation_ref_matched": (binding.get("delegation_ref") or {}).get("matched"),
+            "delegation_chain_continuity": binding.get("delegation_chain_continuity"),
+        },
+        "execution": {
+            "status": execution.get("status"),
+            "evidence_count": execution.get("evidence_count"),
+            "action_bound_count": execution.get("action_bound_count"),
+            "actor_bound_count": execution.get("actor_bound_count"),
+            "cryptographic_authentication": execution.get("cryptographic_authentication"),
+        },
+        "evidence_boundary": {
+            "permit_is_execution": (report.get("evidence_boundary") or {}).get("permit_is_execution"),
+        },
+        "redaction": {
+            "identities_pseudonymized": True,
+            "raw_receipts_omitted": True,
+            "raw_delegations_omitted": True,
+            "raw_execution_events_omitted": True,
+            "free_text_reasons_omitted": True,
+        },
+    }
+
+
 def sanitize_incident(incident: dict[str, Any], *, include_values: bool = False) -> dict[str, Any]:
+    if incident.get("schema") == "agent-replay.aps-authority-reconstruction.v1":
+        return sanitize_aps_reconstruction(incident)
     actor_aliases, event_aliases, kind_aliases, field_aliases = _collect_aliases(incident)
     first = incident.get("first_provable_divergence")
     safe_first = _safe_event(first, actor_aliases, event_aliases, kind_aliases, field_aliases, include_values=include_values, include_status=False) if isinstance(first, dict) else None
