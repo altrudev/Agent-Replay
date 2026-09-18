@@ -68,13 +68,16 @@ def _attach_trace_evidence(incident: dict, record: str, trusted_key: str) -> Non
     )
 
 
-def _detect_format(path: str) -> str:
+def _detect_format(path: str, *, max_bytes: int = DEFAULT_MAX_BYTES) -> str:
     suffix = Path(path).suffix.lower()
     if suffix in {".jsonl", ".ndjson"}:
         return "jsonl"
     if suffix == ".json":
+        source = Path(path)
         try:
-            raw = json.loads(Path(path).read_text(encoding="utf-8"))
+            if source.stat().st_size > max_bytes:
+                return "otel"
+            raw = json.loads(source.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return "otel"
         if isinstance(raw, dict) and isinstance(raw.get("envelope"), dict):
@@ -93,7 +96,7 @@ def _add_limits(parser: argparse.ArgumentParser) -> None:
 
 
 def _reconstruct_input(args) -> dict:
-    fmt = _detect_format(args.input) if args.format == "auto" else args.format
+    fmt = _detect_format(args.input, max_bytes=args.max_bytes) if args.format == "auto" else args.format
     if fmt == "aps":
         if args.trace_id:
             raise ValueError("--trace-id is not valid with APS input")
@@ -200,6 +203,8 @@ def _run(args, parser: argparse.ArgumentParser) -> None:
             parser.error("--trace-record and --trace-key must be supplied together")
         incident = _reconstruct_input(args)
         if args.trace_record:
+            if incident.get("schema") == "agent-replay.aps-authority-reconstruction.v1":
+                raise ValueError("TRACE supplementary evidence is not supported for APS reconstruction")
             _attach_trace_evidence(incident, args.trace_record, args.trace_key)
         _emit(incident, args.json, args.output)
         return
@@ -239,7 +244,7 @@ def main():
     reproduce_parser = sub.add_parser("reproduce", help="Re-run evidence and compare deterministic reconstruction outputs")
     reproduce_parser.add_argument("incident", help="previous machine-readable incident JSON")
     reproduce_parser.add_argument("evidence", help="source evidence to replay")
-    reproduce_parser.add_argument("--format", choices=("auto", "jsonl", "otel", "aps"), default="auto")
+    reproduce_parser.add_argument("--format", choices=("auto", "jsonl", "otel"), default="auto")
     reproduce_parser.add_argument("--trace-id")
     reproduce_parser.add_argument("--trace-record", help="TRACE record used by the original incident, when applicable")
     reproduce_parser.add_argument("--trace-key", help="caller-supplied trusted TRACE key used by the original incident")
