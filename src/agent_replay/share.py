@@ -79,6 +79,15 @@ def _safe_scalar(value: Any) -> Any:
     return "[REDACTED_COMPLEX_VALUE]"
 
 
+def _safe_token(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    if re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", text):
+        return text
+    return "[REDACTED_TOKEN]"
+
+
 def _value_type(value: Any) -> str:
     if value is None:
         return "null"
@@ -216,38 +225,38 @@ def sanitize_aps_reconstruction(report: dict[str, Any]) -> dict[str, Any]:
         "source_schema": report.get("schema"),
         "source_input_sha256": report.get("input_sha256"),
         "external_conformance": {
-            "outcome": external.get("outcome"),
-            "authority_status": external.get("authority_status"),
-            "reason_codes": list(external.get("reasons") or []),
+            "outcome": _safe_token(external.get("outcome")),
+            "authority_status": _safe_token(external.get("authority_status")),
+            "reason_codes": [_safe_token(item) for item in (external.get("reasons") or [])],
         },
         "identity": {
             "claimed_actor": aliases.get(str(identity.get("claimed_actor", "")), "identity-unknown"),
             "intent_signer": aliases.get(str(identity.get("intent_signer", "")), "identity-unknown"),
-            "signature_assessment": identity.get("intent_signature_assessment"),
-            "independent_authentication": identity.get("independent_authentication"),
+            "signature_assessment": _safe_token(identity.get("intent_signature_assessment")),
+            "independent_authentication": _safe_token(identity.get("independent_authentication")),
         },
         "authority": {
             "root_principal": aliases.get(str(authority.get("root_principal", "")), "identity-unknown"),
-            "structural_binding": authority.get("structural_binding"),
-            "independent_cryptographic_verification": authority.get("independent_cryptographic_verification"),
+            "structural_binding": _safe_token(authority.get("structural_binding")),
+            "independent_cryptographic_verification": _safe_token(authority.get("independent_cryptographic_verification")),
         },
         "policy": {
             "issuer": aliases.get(str(policy.get("issuer", "")), "identity-unknown"),
             "signer": aliases.get(str(policy.get("signer", "")), "identity-unknown"),
-            "signature_assessment": policy.get("signature_assessment"),
-            "verdict": policy.get("verdict"),
-            "independent_authentication": policy.get("independent_authentication"),
+            "signature_assessment": _safe_token(policy.get("signature_assessment")),
+            "verdict": _safe_token(policy.get("verdict")),
+            "independent_authentication": _safe_token(policy.get("independent_authentication")),
         },
         "binding": {
-            "status": binding.get("status"),
+            "status": _safe_token(binding.get("status")),
             "checks": dict(binding.get("checks") or {}),
         },
         "execution": {
-            "status": execution.get("status"),
+            "status": _safe_token(execution.get("status")),
             "bound_event_count": len(execution.get("bound_events") or []),
             "unbound_event_count": len(execution.get("unbound_events") or []),
             "malformed_event_count": int(execution.get("malformed_event_count") or 0),
-            "independent_authentication": execution.get("independent_authentication"),
+            "independent_authentication": _safe_token(execution.get("independent_authentication")),
         },
         "evidence_boundary": {
             "permit_is_execution": False,
