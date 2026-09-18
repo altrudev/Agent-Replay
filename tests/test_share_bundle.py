@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from agent_replay.aps import reconstruct_aps_fixture
 from agent_replay.share import build_share_bundle, sanitize_radial
 
 
@@ -113,3 +114,27 @@ def test_radial_export_is_aggregate_only():
     assert public["candidate_count"] == 2
     assert public["candidate_class_count"] == 1
     assert public["mapping_provenance"]["DEFAULT"] == 9
+
+
+
+def test_aps_share_bundle_pseudonymizes_identities_and_omits_raw_receipts():
+    from pathlib import Path
+
+    source = Path("tests/fixtures/aps/oracle-safety-check-v1/pass.json")
+    report = reconstruct_aps_fixture(json.loads(source.read_text(encoding="utf-8")))
+    bundle = build_share_bundle(report)
+    encoded = json.dumps(bundle)
+
+    for forbidden in (
+        "did:aps:insight-agent-001",
+        "did:aps:insight-principal-001",
+        "did:aps:insight-gateway-001",
+        "9244589a10f656eb9c92173b04c209a8978bfdb1cc111b4ca8d7035a5de608db",
+    ):
+        assert forbidden not in encoded
+
+    public = bundle["incident"]
+    assert public["schema"] == "agent-replay.public-aps-authority.v1"
+    assert public["binding"]["status"] == "COMPLETE"
+    assert public["execution"]["status"] == "NOT_OBSERVED"
+    assert public["evidence_boundary"]["permit_is_execution"] is False
