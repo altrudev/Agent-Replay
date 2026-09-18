@@ -187,6 +187,13 @@ def reconstruct_aps_fixture(
     )
 
     provenance = input_provenance if isinstance(input_provenance, dict) else {}
+    provenance_values = [provenance.get(key) for key in ("repository", "revision", "path")]
+    provenance_count = sum(1 for value in provenance_values if value)
+    provenance_status = (
+        "SUPPLIED" if provenance_count == 3
+        else "PARTIAL" if provenance_count
+        else "UNKNOWN"
+    )
     external_disposition = _external_authority_disposition(document, decision)
 
     cannot_establish = [
@@ -225,10 +232,8 @@ def reconstruct_aps_fixture(
                 "revision": provenance.get("revision"),
                 "path": provenance.get("path"),
                 "sha256": input_sha256,
-                "provenance_status": (
-                    "SUPPLIED" if any(provenance.get(key) for key in ("repository", "revision", "path"))
-                    else "UNKNOWN"
-                ),
+                "provenance_status": provenance_status,
+                "verification": "CALLER_SUPPLIED_NOT_VERIFIED",
             },
             "external_conformance": {
                 "outcome": document.get("expected"),
