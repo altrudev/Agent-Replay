@@ -167,12 +167,21 @@ def _policy_assessment(
     expected_sha256 = sha256_json(event.expected)
     result["expected_sha256"] = expected_sha256
     if status == "VERIFIED":
+        expected_representation_error = _validate_signed_value(event.expected, "$.expected")
+        if expected_representation_error:
+            result.update(status="INVALID_REPRESENTATION", basis=expected_representation_error)
+            return result
         missing = _missing_fields(payload, (
             "policy_id", "policy_version", "authority_version", "event_id",
             "subject", "action", "authority_scope", "expected_sha256",
         ))
         if missing:
             result.update(status="INVALID_PROOF", basis="signed policy proof missing required fields: " + ", ".join(missing))
+        elif observed_representation_error:
+            result.update(
+                status="INVALID_REPRESENTATION",
+                basis=observed_representation_error,
+            )
         elif payload.get("event_id") != event.event_id:
             result.update(status="BINDING_MISMATCH", basis="signed policy proof is bound to a different event_id")
         elif payload.get("expected_sha256") != expected_sha256:
@@ -234,6 +243,19 @@ def _receipt_assessment(
         received_at = _parse_time(payload.get("received_at"))
         event_time = _parse_time(event.timestamp)
         revocation_event = events_by_id.get(str(payload.get("revocation_event_id", "")))
+        revocation_representation_error = (
+            _validate_signed_value({
+                "event_id": revocation_event.event_id,
+                "timestamp": revocation_event.timestamp,
+                "actor": revocation_event.actor,
+                "kind": revocation_event.kind,
+                "observed": revocation_event.observed,
+                "expected": revocation_event.expected,
+                "evidence": revocation_event.evidence,
+                "parent_ids": list(revocation_event.parent_ids),
+            }, "$.revocation_event")
+            if revocation_event is not None else None
+        )
         if missing:
             result.update(status="INVALID_PROOF", basis="signed revocation receipt missing required fields: " + ", ".join(missing))
         elif received_at is None:
@@ -242,6 +264,8 @@ def _receipt_assessment(
             result.update(status="TEMPORAL_MISMATCH", basis="receipt claims delivery after the execution event")
         elif revocation_event is None:
             result.update(status="MISSING_BOUND_EVIDENCE", basis="receipt references a revocation event not present in supplied evidence")
+        elif revocation_representation_error:
+            result.update(status="INVALID_REPRESENTATION", basis=revocation_representation_error)
         elif payload.get("revocation_sha256") != _event_digest(revocation_event):
             result.update(status="BINDING_MISMATCH", basis="receipt does not bind the supplied revocation event bytes")
         elif payload.get("authority_version") != revocation_event.observed.get("authority_version"):
@@ -313,6 +337,7 @@ def _evaluation_assessment(
         receipt_digest = sha256_json(receipt_payload) if isinstance(receipt_payload, dict) else None
         receipt_time = _parse_time(receipt.get("received_at"))
         observed_sha256 = sha256_json(event.observed)
+        observed_representation_error = _validate_signed_value(event.observed, "$.observed")
 
         if missing:
             result.update(
@@ -483,19 +508,6 @@ def assess_boundary_evidence(
             policy=policy,
             events_by_id=events_by_id,
         )
-        evaluation = _evaluation_assessment(
-            event,
-            trust_store=trusted,
-            policy=policy,
-            receipt=receipt,
-        )
-        enforcement = _enforcement_assessment(
-            event,
-            policy=policy,
-            receipt=receipt,
-            evaluation=evaluation,
-        )
-
         if receipt["status"] == "VERIFIED":
             nonce_key = (str(receipt.get("key_id", "")), str(receipt.get("nonce", "")))
             receipt_digest = sha256_json(
@@ -511,6 +523,19 @@ def assess_boundary_evidence(
                 if prior_digest == receipt_digest:
                     receipt["reused_receipt"] = True
                 seen_receipt_nonces[nonce_key] = receipt_digest
+
+        evaluation = _evaluation_assessment(
+            event,
+            trust_store=trusted,
+            policy=policy,
+            receipt=receipt,
+        )
+        enforcement = _enforcement_assessment(
+            event,
+            policy=policy,
+            receipt=receipt,
+            evaluation=evaluation,
+        )
         if policy["status"] == "VERIFIED":
             authenticated_expectations += 1
         if evaluation["status"] == "VERIFIED":
