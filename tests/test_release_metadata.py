@@ -34,4 +34,4 @@ def test_ddc_adapter_version_matches_core_and_dependency_floor():
 
     assert adapter_project["version"] == core_version
     assert adapter_module_version == core_version
-    assert f"agent-replay>={core_version},<0.6.0" in adapter_project["dependencies"]
+    assert f"agent-replay>={core_version},<0.7.0" in adapter_project["dependencies"]
