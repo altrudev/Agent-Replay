@@ -254,3 +254,16 @@ def test_legacy_instrumentation_library_spans_are_supported():
 def test_empty_otlp_fails_closed():
     with pytest.raises(OpenTelemetryFormatError, match="no spans"):
         otlp_json_to_events({"resourceSpans": []})
+
+
+
+def test_otlp_rejects_oversized_input_before_reading_bytes(tmp_path: Path, monkeypatch):
+    path = tmp_path / "otel.json"
+    path.write_text('{"resourceSpans":[]}', encoding="utf-8")
+
+    def explode(_self):
+        raise AssertionError("read_bytes must not run for oversized OTLP input")
+
+    monkeypatch.setattr(Path, "read_bytes", explode)
+    with pytest.raises(OpenTelemetryFormatError, match="max_bytes=1"):
+        load_otlp_json(path, max_bytes=1)
