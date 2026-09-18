@@ -25,9 +25,11 @@ Even with `--include-values`, the final artifact still passes the fail-closed se
 
 The public bundle is constructed from an explicit allowlist. It does **not** copy arbitrary source fields and then attempt to redact them afterward.
 
+APS reconstructions use a separate public representation, `agent-replay.public-aps-authority.v1`, that keeps structural binding states and counts while pseudonymizing identities and omitting raw receipts, delegations, and execution events.
+
 Included by default:
 
-- source incident/canonical SHA-256 values;
+- source incident/canonical SHA-256 values, or the APS input SHA-256;
 - pseudonymized event IDs, event kinds, actor labels, parent relationships, and assertion-field names;
 - mismatch type information and whether the expected/observed values differ;
 - reconstruction status, confidence and evidence-completeness state;
@@ -51,6 +53,7 @@ Excluded by default:
 - DDC feature vectors, scores and thresholds;
 - absolute filesystem paths;
 - infrastructure addresses;
+- raw APS receipts, delegation records, execution event payloads and DID identities;
 - arbitrary unallowlisted fields.
 
 The final bundle is also scanned for common bearer tokens, credential-shaped values, absolute `/home/...` paths, IP addresses and email addresses. A match fails closed rather than silently publishing the bundle.
