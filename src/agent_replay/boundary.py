@@ -287,6 +287,7 @@ def _evaluation_assessment(
         "event_id",
         "execution_boundary_id",
         "evaluated_at",
+        "decision_at",
         "authority_state",
         "authority_version",
         "policy_id",
@@ -301,11 +302,12 @@ def _evaluation_assessment(
     if status == "VERIFIED":
         missing = _missing_fields(payload, (
             "evaluation_id", "event_id", "execution_boundary_id",
-            "evaluated_at", "authority_state", "authority_version",
+            "evaluated_at", "decision_at", "authority_state", "authority_version",
             "policy_id", "policy_version", "policy_sha256",
             "revocation_receipt_sha256", "observed_sha256",
         ))
         evaluated_at = _parse_time(payload.get("evaluated_at"))
+        decision_at = _parse_time(payload.get("decision_at"))
         event_time = _parse_time(event.timestamp)
         receipt_payload = event.evidence.get("revocation_receipt", {}).get("payload", {})
         receipt_digest = sha256_json(receipt_payload) if isinstance(receipt_payload, dict) else None
@@ -322,15 +324,20 @@ def _evaluation_assessment(
                 status="BINDING_MISMATCH",
                 basis="signed execution evaluation is bound to a different event_id",
             )
-        elif evaluated_at is None:
+        elif evaluated_at is None or decision_at is None:
             result.update(
                 status="INVALID_PROOF",
-                basis="evaluated_at is missing or invalid",
+                basis="evaluated_at or decision_at is missing or invalid",
             )
-        elif event_time and evaluated_at > event_time:
+        elif evaluated_at > decision_at:
             result.update(
                 status="TEMPORAL_MISMATCH",
-                basis="evaluation claims to occur after the execution event",
+                basis="evaluation claims to occur after the signed execution decision",
+            )
+        elif event_time and decision_at != event_time:
+            result.update(
+                status="BINDING_MISMATCH",
+                basis="signed execution decision time does not match the reconstructed execution event time",
             )
         elif receipt.get("status") != "VERIFIED":
             result.update(
@@ -351,6 +358,11 @@ def _evaluation_assessment(
             result.update(
                 status="BINDING_MISMATCH",
                 basis="execution evaluation and revocation receipt name different execution boundaries",
+            )
+        elif result.get("key_id") != receipt.get("key_id"):
+            result.update(
+                status="IDENTITY_MISMATCH",
+                basis="execution evaluation and delivery receipt were not signed by the same trusted boundary key",
             )
         elif (
             receipt.get("revocation_authority_state") is not None
