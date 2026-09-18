@@ -270,3 +270,47 @@ def test_signature_failure_language_does_not_claim_independent_oracle_verificati
     report = reconstruct_aps_fixture(load_fixture("sig-tampered"))
     assert report["policy"]["signature_assessment"] == "FAILED_BY_SUPPLIED_CONFORMANCE"
     assert report["policy"]["independent_authentication"] == "NOT_VERIFIED"
+
+
+
+def test_cli_auto_detects_real_aps_fixture(tmp_path):
+    from argparse import Namespace
+
+    args = Namespace(
+        input=str(FIXTURE_DIR / "pass.json"),
+        format="auto",
+        trace_id=None,
+        max_bytes=1024 * 1024,
+        max_events=100,
+        max_parents=10,
+        max_depth=10,
+    )
+
+    report = cli._reconstruct_input(args)
+
+    assert report["input_format"] == "aps-oracle-safety-check-v1"
+    assert report["schema"] == "agent-replay.aps-authority-reconstruction.v2"
+
+
+def test_plain_text_render_keeps_external_and_replay_status_separate():
+    from agent_replay.report import render_text
+
+    text = render_text(reconstruct_aps_fixture(load_fixture("pass")))
+    assert "EXTERNAL APS CONFORMANCE" in text
+    assert "Authority status: SUPPLIED_ALLOWED" in text
+    assert "Independent authentication: NOT_VERIFIED" in text
+    assert "Status: NO_EXECUTION_EVIDENCE" in text
+    assert "Permit is execution: false" in text
+
+
+def test_aps_public_share_redacts_free_form_external_strings():
+    document = load_fixture("pass")
+    document["expectReasons"] = ["user@example.com should never leak"]
+    document["envelope"]["decision"]["result"]["verdict"] = "permit with free text"
+    report = reconstruct_aps_fixture(document, input_sha256="b" * 64)
+
+    public = build_share_bundle(report)["incident"]
+
+    assert public["external_conformance"]["reason_codes"] == ["[REDACTED_TOKEN]"]
+    assert public["policy"]["verdict"] == "[REDACTED_TOKEN]"
+    assert "user@example.com" not in json.dumps(public)
