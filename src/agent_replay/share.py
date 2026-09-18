@@ -246,6 +246,7 @@ def sanitize_aps_reconstruction(report: dict[str, Any]) -> dict[str, Any]:
             "status": execution.get("status"),
             "bound_event_count": len(execution.get("bound_events") or []),
             "unbound_event_count": len(execution.get("unbound_events") or []),
+            "malformed_event_count": int(execution.get("malformed_event_count") or 0),
             "independent_authentication": execution.get("independent_authentication"),
         },
         "evidence_boundary": {
