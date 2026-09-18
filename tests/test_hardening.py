@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
+from agent_replay import cli
 from agent_replay.normalize import EvidenceFormatError, normalize_jsonl, normalize_records
+from agent_replay.otel import OpenTelemetryFormatError, load_otlp_json
 from agent_replay.reconstruct import reconstruct
 from agent_replay.reproduce import compare_reconstruction
 
@@ -70,3 +72,54 @@ def test_reproducibility_reports_drift():
     result = compare_reconstruction(expected, observed)
     assert result["status"] == "DRIFTED"
     assert result["differences"] == ["canonical_sha256"]
+
+
+
+def test_reconstruct_rejects_oversized_file_before_read_bytes(tmp_path: Path, monkeypatch):
+    path = tmp_path / "events.jsonl"
+    path.write_text(json.dumps(_event("a")) + "\n", encoding="utf-8")
+
+    def fail_read(self):
+        raise AssertionError("read_bytes must not run after size rejection")
+
+    monkeypatch.setattr(Path, "read_bytes", fail_read)
+    with pytest.raises(EvidenceFormatError, match="max_bytes=1"):
+        reconstruct(path, max_bytes=1)
+
+
+def test_otlp_rejects_oversized_file_before_read_bytes(tmp_path: Path, monkeypatch):
+    path = tmp_path / "otel.json"
+    path.write_text('{"resourceSpans":[]}', encoding="utf-8")
+
+    def fail_read(self):
+        raise AssertionError("read_bytes must not run after size rejection")
+
+    monkeypatch.setattr(Path, "read_bytes", fail_read)
+    with pytest.raises(OpenTelemetryFormatError, match="max_bytes=1"):
+        load_otlp_json(path, max_bytes=1)
+
+
+def test_aps_cli_rejects_oversized_file_before_read_bytes(tmp_path: Path, monkeypatch):
+    from argparse import Namespace
+
+    path = tmp_path / "aps.json"
+    path.write_text('{"envelope":{"intent":{},"decision":{},"delegations":[]}}', encoding="utf-8")
+
+    def fail_read(self):
+        raise AssertionError("read_bytes must not run after size rejection")
+
+    monkeypatch.setattr(Path, "read_bytes", fail_read)
+    args = Namespace(
+        input=str(path),
+        format="aps",
+        trace_id=None,
+        max_bytes=1,
+        max_events=100,
+        max_parents=10,
+        max_depth=10,
+        source_repository=None,
+        source_revision=None,
+        source_path=None,
+    )
+    with pytest.raises(ValueError, match="max_bytes=1"):
+        cli._reconstruct_input(args)
