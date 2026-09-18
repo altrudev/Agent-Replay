@@ -94,6 +94,15 @@ def render_text(report: dict[str, Any]) -> str:
         lines.append(
             f"Verified revocation receipts: {boundary.get('verified_revocation_receipts', 0)}"
         )
+        lines.append(
+            f"Verified execution evaluations: {boundary.get('verified_execution_evaluations', 0)}"
+        )
+        lines.append(
+            f"Enforcement consistent: {boundary.get('enforcement_consistent_events', 0)}"
+        )
+        lines.append(
+            f"Enforcement diverged: {boundary.get('enforcement_diverged_events', 0)}"
+        )
         lines.append(f"Replay scope: {boundary.get('replay_scope', 'UNKNOWN')}")
         lines.append(f"Scope: {boundary.get('claim_scope', '')}")
     lines.append("")
