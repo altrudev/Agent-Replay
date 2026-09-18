@@ -430,6 +430,7 @@ def _full_boundary_case(*, execution_permitted, evaluation_state="REVOKED", incl
             "event_id": "exec-1",
             "execution_boundary_id": "payment-boundary",
             "evaluated_at": "2026-09-17T20:59:30Z",
+            "decision_at": "2026-09-17T21:00:00Z",
             "authority_state": evaluation_state,
             "authority_version": "18",
             "policy_id": "pay-policy",
