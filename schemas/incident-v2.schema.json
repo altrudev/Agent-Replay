@@ -110,13 +110,18 @@
       "type": "object",
       "required": [
         "schema", "trust_store_configured", "authenticated_expectation_events",
-        "verified_revocation_receipts", "events", "replay_scope", "canonicalization", "claim_scope"
+        "verified_revocation_receipts", "verified_execution_evaluations",
+        "enforcement_consistent_events", "enforcement_diverged_events",
+        "events", "replay_scope", "canonicalization", "claim_scope"
       ],
       "properties": {
         "schema": {"const": "agent-replay.boundary-evidence.v1"},
         "trust_store_configured": {"type": "boolean"},
         "authenticated_expectation_events": {"type": "integer", "minimum": 0},
         "verified_revocation_receipts": {"type": "integer", "minimum": 0},
+        "verified_execution_evaluations": {"type": "integer", "minimum": 0},
+        "enforcement_consistent_events": {"type": "integer", "minimum": 0},
+        "enforcement_diverged_events": {"type": "integer", "minimum": 0},
         "events": {"type": "array", "items": {"type": "object"}},
         "replay_scope": {"const": "INCIDENT_LOCAL_ONLY"},
         "canonicalization": {"type": "string", "minLength": 1},
