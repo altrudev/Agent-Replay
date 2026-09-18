@@ -237,3 +237,19 @@ def test_aps_reconstruction_maps_to_explicit_evidence_graph():
         if edge["src"] == "aps:policy" and edge["dst"] == "aps:execution"
     )
     assert policy_execution["context_bound"] is False
+
+
+
+def test_aps_broken_binding_weakens_radial_context_edges():
+    fixture = json.loads(
+        Path("tests/fixtures/aps-oracle-safety-check-v1/pass.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    fixture["envelope"]["decision"]["delegation_ref"] = "sha256:wrong"
+    report = reconstruct_aps_fixture(fixture)
+    graph = incident_to_radial_spec(report)
+
+    edges = {(edge["src"], edge["dst"]): edge for edge in graph["edges"]}
+    assert edges[("aps:delegation", "aps:intent")]["context_bound"] is False
+    assert edges[("aps:intent", "aps:policy")]["context_bound"] is False
