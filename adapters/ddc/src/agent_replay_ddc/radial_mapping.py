@@ -75,7 +75,7 @@ def _edge_meta(radial: dict[str, Any], src: str) -> dict[str, Any]:
     return merged
 
 
-def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
+def _incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
     if incident.get("schema") != "agent-replay.incident.v2":
         raise ValueError("DDC Radial adapter requires agent-replay.incident.v2")
     timeline = incident.get("timeline")
@@ -160,3 +160,92 @@ def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
             })
 
     return {"nodes": nodes, "edges": edges}
+
+
+
+def _aps_to_radial_spec(report: dict[str, Any]) -> dict[str, Any]:
+    identity = report.get("identity") if isinstance(report.get("identity"), dict) else {}
+    authority = report.get("authority") if isinstance(report.get("authority"), dict) else {}
+    policy = report.get("policy") if isinstance(report.get("policy"), dict) else {}
+    binding = report.get("binding") if isinstance(report.get("binding"), dict) else {}
+    execution = report.get("execution") if isinstance(report.get("execution"), dict) else {}
+
+    nodes = [
+        {
+            "id": "aps:intent",
+            "dimensions": ["authority", "identity", "provenance", "representation"],
+            "mutable": False,
+            "authority": str(identity.get("intent_issuer") or ""),
+            "representation": "aps:action-intent",
+            "consequence": 0.0,
+            "observable": True,
+            "reversible": True,
+            "provenance": {key: "EXPLICIT" for key in ("mutable","authority","representation","consequence","observable","reversible")},
+        },
+        {
+            "id": "aps:delegation",
+            "dimensions": ["authority", "policy", "provenance", "time"],
+            "mutable": False,
+            "authority": str(authority.get("root_principal") or ""),
+            "representation": "aps:delegation-chain",
+            "consequence": 0.5,
+            "observable": bool(authority.get("delegation_path")),
+            "reversible": True,
+            "provenance": {key: "EXPLICIT" for key in ("mutable","authority","representation","consequence","observable","reversible")},
+        },
+        {
+            "id": "aps:policy",
+            "dimensions": ["authority", "policy", "provenance", "representation"],
+            "mutable": False,
+            "authority": str(policy.get("issuer") or ""),
+            "representation": "aps:policy-decision",
+            "consequence": 0.7,
+            "observable": True,
+            "reversible": True,
+            "provenance": {key: "EXPLICIT" for key in ("mutable","authority","representation","consequence","observable","reversible")},
+        },
+        {
+            "id": "aps:execution",
+            "dimensions": ["action", "execution", "provenance", "observability"],
+            "mutable": False,
+            "authority": "",
+            "representation": "aps:execution-evidence",
+            "consequence": 1.0,
+            "observable": bool(execution.get("bound_events")),
+            "reversible": False,
+            "provenance": {key: "EXPLICIT" for key in ("mutable","authority","representation","consequence","observable","reversible")},
+        },
+    ]
+
+    checks = binding.get("checks") if isinstance(binding.get("checks"), dict) else {}
+    edges = [
+        {
+            "src": "aps:delegation", "dst": "aps:intent", "relation": "authorizes",
+            "time_gap": 0.0, "independently_mutable": True,
+            "shared_atomic_boundary": False, "freshness_bound": True, "context_bound": True,
+            "provenance": {key: "EXPLICIT" for key in ("relation","time_gap","independently_mutable","shared_atomic_boundary","freshness_bound","context_bound")},
+        },
+        {
+            "src": "aps:intent", "dst": "aps:policy", "relation": "evaluated_by",
+            "time_gap": 0.0, "independently_mutable": True,
+            "shared_atomic_boundary": False, "freshness_bound": True, "context_bound": bool(checks.get("action_ref") and checks.get("receipt_link")),
+            "provenance": {key: "EXPLICIT" for key in ("relation","time_gap","independently_mutable","shared_atomic_boundary","freshness_bound","context_bound")},
+        },
+        {
+            "src": "aps:policy", "dst": "aps:execution", "relation": "precedes",
+            "time_gap": 0.0, "independently_mutable": True,
+            "shared_atomic_boundary": False, "freshness_bound": False,
+            "context_bound": execution.get("status") == "EXECUTION_BOUND_TO_ACTION",
+            "provenance": {key: "EXPLICIT" for key in ("relation","time_gap","independently_mutable","shared_atomic_boundary","freshness_bound","context_bound")},
+        },
+    ]
+    return {"nodes": nodes, "edges": edges}
+
+
+def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
+    schema = incident.get("schema")
+    if schema == "agent-replay.incident.v2":
+        return _incident_to_radial_spec(incident)
+    if schema == "agent-replay.aps-authority-reconstruction.v2":
+        return _aps_to_radial_spec(incident)
+    raise ValueError(f"DDC Radial adapter does not support schema: {schema!r}")
