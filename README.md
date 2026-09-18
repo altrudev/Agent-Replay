@@ -436,7 +436,9 @@ Deleting `adapters/ddc/` leaves Agent Replay fully functional.
 
 ```text
 schemas/incident-v2.schema.json
+schemas/aps-authority-reconstruction-v2.schema.json
 schemas/public-share-v1.schema.json
+schemas/public-aps-share-v1.schema.json
 schemas/public-radial-review-v1.schema.json
 schemas/share-bundle-v1.schema.json
 ```
