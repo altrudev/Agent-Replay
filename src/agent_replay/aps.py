@@ -33,17 +33,17 @@ def _delegation_path(delegations: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _external_authority_status(document: dict[str, Any], decision: dict[str, Any]) -> str:
     reasons = set(document.get("expectReasons") or [])
     if "AUTH_DELEGATION_REVOKED" in reasons:
-        return "REVOKED"
+        return "SUPPLIED_REVOKED"
     if "AUTH_DELEGATION_EXPIRED" in reasons:
-        return "EXPIRED"
+        return "SUPPLIED_EXPIRED"
     if "SIGNATURE_INVALID" in reasons and "HALT_AUTHORITY" in reasons:
-        return "UNVERIFIED"
+        return "SUPPLIED_SIGNATURE_INVALID"
     if "POLICY_DENIED" in reasons or (decision.get("result") or {}).get("verdict") == "deny":
-        return "DENIED"
+        return "SUPPLIED_DENIED"
     if document.get("expected") == "allowed":
-        return "ALLOWED_BY_FIXTURE"
+        return "SUPPLIED_ALLOWED"
     if "HALT_AUTHORITY" in reasons:
-        return "INVALID"
+        return "SUPPLIED_INVALID"
     return "NOT_ESTABLISHED"
 
 
@@ -65,7 +65,7 @@ def _receipt_authentication_status(
         "decision_signature_invalid" in sub_results
         or ("SIGNATURE_INVALID" in reasons and "HALT_AUTHORITY" in reasons)
     ):
-        return "FAILED_BY_FIXTURE_ORACLE"
+        return "FAILED_BY_SUPPLIED_CONFORMANCE"
     if signer != issuer:
         return "CLAIMED_SIGNER_MISMATCH"
     return "CLAIMED_SIGNER_CONSISTENT"
