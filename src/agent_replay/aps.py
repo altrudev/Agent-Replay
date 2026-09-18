@@ -166,7 +166,7 @@ def _execution_evidence(
             unbound.append(event)
 
     if bound and not unbound and malformed_count == 0:
-        status = "EXECUTION_BOUND_TO_ACTION"
+        status = "EXECUTION_EVIDENCE_BOUND_TO_ACTION"
     elif bound:
         status = "EXECUTION_EVIDENCE_PARTIALLY_BOUND"
     else:
