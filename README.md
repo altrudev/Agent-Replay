@@ -8,10 +8,47 @@ Agent Replay answers a narrow forensic question:
 
 It is **not** an observability platform, agent runtime, policy engine, or monitoring service.
 
-Current hardening line: **v0.5.1**.
+Current hardening line: **v0.6.0**.
 
 - See [CHANGELOG.md](CHANGELOG.md) for release history.
 - See [SECURITY.md](SECURITY.md) before processing sensitive or untrusted evidence.
+
+## v0.6 — APS authority reconstruction without evidence promotion
+
+v0.6 adds a pinned Agent Passport System (APS) interoperability path while preserving Agent Replay's core forensic rule: **a claim is never upgraded without additional evidence**.
+
+The APS adapter separates:
+
+```text
+claimed actor
+signer claim
+delegated authority structure
+policy decision
+execution evidence
+```
+
+Run the pinned APS fixture format directly:
+
+```bash
+agent-replay reconstruct tests/fixtures/aps/oracle-safety-check-v1/pass.json --format aps
+```
+
+The adapter structurally verifies action, receipt and delegation bindings, but does not claim independent Ed25519/EIP-712 verification. APS's conformance outcome remains explicitly external evidence.
+
+Execution evidence is graded:
+
+```text
+NOT_OBSERVED
+EVIDENCE_PRESENT_UNBOUND
+ACTION_BOUND
+ACTOR_BOUND
+```
+
+A policy permit is never execution evidence.
+
+All 13 cases from the pinned APS revision `6e8b05b202d727ef18e84e100fc31db11f36529f` are vendored into the test suite. APS reconstructions also have dedicated JSON Schema, safe-share support, and optional DDC Radial structural review.
+
+Input provenance is distinct from the revision against which the adapter was tested. Arbitrary APS input is reported with unknown repository/revision provenance unless the caller supplies it independently.
 
 ## v0.5 — hardened replay and safer evidence handling
 
@@ -26,7 +63,7 @@ agent-replay reconstruct examples/refund-750/events.jsonl
 agent-replay reconstruct examples/refund-750/otel.json
 ```
 
-`--format jsonl` and `--format otel` remain available when an explicit override is preferable.
+`--format jsonl`, `--format otel`, and `--format aps` remain available when an explicit override is preferable.
 
 Useful operator commands:
 
@@ -372,6 +409,7 @@ For OTLP input:
 
 ```bash
 agent-replay-ddc review examples/refund-750/otel.json --format otel
+agent-replay-ddc review tests/fixtures/aps/oracle-safety-check-v1/pass.json --format aps
 ```
 
 Machine-readable Radial output now also reports aggregate mapping provenance so downstream reviewers can see how much of the graph came from explicit evidence versus inference/defaults.
@@ -415,6 +453,8 @@ schemas/incident-v2.schema.json
 schemas/public-share-v1.schema.json
 schemas/public-radial-review-v1.schema.json
 schemas/share-bundle-v1.schema.json
+schemas/aps-authority-reconstruction-v1.schema.json
+schemas/public-aps-authority-v1.schema.json
 ```
 
 The internal incident and externally shareable artifacts have separate schemas intentionally; sanitization is a representation boundary, not a presentation flag.
