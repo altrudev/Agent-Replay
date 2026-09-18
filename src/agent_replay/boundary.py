@@ -244,6 +244,8 @@ def _receipt_assessment(
             result.update(status="MISSING_BOUND_EVIDENCE", basis="receipt references a revocation event not present in supplied evidence")
         elif payload.get("revocation_sha256") != _event_digest(revocation_event):
             result.update(status="BINDING_MISMATCH", basis="receipt does not bind the supplied revocation event bytes")
+        elif payload.get("authority_version") != revocation_event.observed.get("authority_version"):
+            result.update(status="BINDING_MISMATCH", basis="receipt authority_version does not match the bound revocation event")
         elif received_at < (_parse_time(revocation_event.timestamp) or received_at):
             result.update(status="TEMPORAL_MISMATCH", basis="receipt claims delivery before the bound revocation event")
         elif policy.get("status") == "VERIFIED" and (
@@ -254,6 +256,12 @@ def _receipt_assessment(
         ):
             result.update(status="BINDING_MISMATCH", basis="receipt is bound to a different policy or authority version")
         else:
+            result["revocation_authority_state"] = (
+                revocation_event.observed.get("authority_status")
+                if "authority_status" in revocation_event.observed
+                else revocation_event.observed.get("authority_state")
+            )
+            result["revocation_authority_version"] = revocation_event.observed.get("authority_version")
             result["basis"] = "signed receipt verified and establishes delivery no later than this execution event"
     return result
 
@@ -344,6 +352,19 @@ def _evaluation_assessment(
                 status="BINDING_MISMATCH",
                 basis="execution evaluation and revocation receipt name different execution boundaries",
             )
+        elif (
+            receipt.get("revocation_authority_state") is not None
+            and payload.get("authority_state") != receipt.get("revocation_authority_state")
+        ):
+            result.update(
+                status="STATE_MISMATCH",
+                basis="execution evaluation did not evaluate the authority state established by the bound revocation event",
+            )
+        elif payload.get("authority_version") != receipt.get("revocation_authority_version"):
+            result.update(
+                status="STATE_MISMATCH",
+                basis="execution evaluation did not evaluate the authority version established by the bound revocation event",
+            )
         elif payload.get("observed_sha256") != observed_sha256:
             result.update(
                 status="BINDING_MISMATCH",
@@ -408,7 +429,8 @@ def _enforcement_assessment(
 
     expected = event.expected
     observed = event.observed
-    if expected == observed:
+    expectation_matches = all(observed.get(field) == value for field, value in expected.items())
+    if expectation_matches:
         return {
             "status": "ENFORCEMENT_CONSISTENT",
             "basis": (
