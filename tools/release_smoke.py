@@ -10,7 +10,7 @@ import tempfile
 import venv
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_VERSION = "0.5.1"
+EXPECTED_VERSION = "0.6.0"
 
 
 def run(argv: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
