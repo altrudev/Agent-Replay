@@ -106,7 +106,7 @@ def _reconstruct_input(args) -> dict:
         document = json.loads(raw.decode("utf-8"))
         if not isinstance(document, dict):
             raise ValueError("APS input must be a JSON object")
-        incident = reconstruct_aps_fixture(document)
+        incident = reconstruct_aps_fixture(document, input_sha256=hashlib.sha256(raw).hexdigest())
         incident["input_sha256"] = hashlib.sha256(raw).hexdigest()
         incident["input_format"] = "aps-oracle-safety-check-v1"
         return incident
