@@ -25,13 +25,14 @@
         },
         "input_provenance":{
           "type":"object",
-          "required":["repository","revision","path","sha256","provenance_status"],
+          "required":["repository","revision","path","sha256","provenance_status","verification"],
           "properties":{
             "repository":{"type":["string","null"]},
             "revision":{"type":["string","null"]},
             "path":{"type":["string","null"]},
             "sha256":{"type":["string","null"],"pattern":"^[a-f0-9]{64}$"},
-            "provenance_status":{"enum":["UNKNOWN","SUPPLIED"]}
+            "provenance_status":{"enum":["UNKNOWN","PARTIAL","SUPPLIED"]},
+            "verification":{"const":"CALLER_SUPPLIED_NOT_VERIFIED"}
           }
         },
         "external_conformance":{
