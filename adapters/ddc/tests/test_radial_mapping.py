@@ -230,8 +230,12 @@ def test_aps_reconstruction_maps_structural_bindings_into_radial_graph():
 
     assert ("aps:principal", "aps:delegation:1", "delegates") in edges
     assert ("aps:delegation:1", "aps:delegation:2", "delegates") in edges
-    assert ("aps:delegation:2", "aps:intent", "authorizes_claim") in edges
-    assert ("aps:intent", "aps:policy", "receipt_precedes") in edges
+    assert ("aps:delegation:2", "aps:intent", "delegation_ref_binds") in edges
+    assert ("aps:intent", "aps:policy", "receipt_link") in edges
+
+    nodes = {node["id"]: node for node in graph["nodes"]}
+    assert nodes["aps:intent"]["authority"] == ""
+    assert nodes["aps:policy"]["authority"] == ""
 
     provenance = [
         value
