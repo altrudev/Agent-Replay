@@ -31,7 +31,7 @@ The APS reconstruction separates:
 - action, receipt, delegation-chain, and policy binding,
 - pre-dispatch permit decisions from post-dispatch execution evidence.
 
-Execution evidence is graded as `NO_EXECUTION_EVIDENCE`, `EXECUTION_EVIDENCE_UNBOUND`, `EXECUTION_EVIDENCE_PARTIALLY_BOUND`, or `EXECUTION_BOUND_TO_ACTION`. Agent Replay does not currently claim independent Ed25519/EIP-712 verification.
+Execution evidence is graded as `NO_EXECUTION_EVIDENCE`, `EXECUTION_EVIDENCE_UNBOUND`, `EXECUTION_EVIDENCE_PARTIALLY_BOUND`, or `EXECUTION_EVIDENCE_BOUND_TO_ACTION`. Agent Replay does not currently claim independent Ed25519/EIP-712 verification.
 
 The optional DDC adapter can map APS reconstruction into an evidence graph with explicit delegation → intent → policy → execution boundaries. Radial findings remain non-authoritative candidate hypotheses.
 
