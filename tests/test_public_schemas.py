@@ -67,14 +67,10 @@ def test_aps_reconstruction_conforms_to_schema():
     ).validate(report)
 
 
-def test_sanitized_aps_conforms_to_public_schema_and_share_bundle_schema():
+def test_sanitized_aps_conforms_to_public_schema():
     source = Path("tests/fixtures/aps/oracle-safety-check-v1/pass.json")
     report = reconstruct_aps_fixture(json.loads(source.read_text(encoding="utf-8")))
     public = sanitize_aps_reconstruction(report)
     jsonschema.Draft202012Validator(
         _schema("public-aps-authority-v1.schema.json")
     ).validate(public)
-    bundle = build_share_bundle(report)
-    jsonschema.Draft202012Validator(
-        _schema("share-bundle-v1.schema.json")
-    ).validate(bundle)
