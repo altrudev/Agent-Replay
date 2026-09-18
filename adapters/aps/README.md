@@ -34,7 +34,7 @@ Execution states are:
 NO_EXECUTION_EVIDENCE
 EXECUTION_EVIDENCE_UNBOUND
 EXECUTION_EVIDENCE_PARTIALLY_BOUND
-EXECUTION_BOUND_TO_ACTION
+EXECUTION_EVIDENCE_BOUND_TO_ACTION
 ```
 
 An execution event is only counted as bound when its `action_ref` matches the reconstructed action and its actor does not contradict the claimed actor. This still does not make the event cryptographically authenticated.
