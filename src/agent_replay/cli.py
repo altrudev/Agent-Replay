@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 
+from .aps import reconstruct_aps_fixture
 from .normalize import (
     DEFAULT_MAX_BYTES,
     DEFAULT_MAX_DEPTH,
@@ -67,11 +68,22 @@ def _attach_trace_evidence(incident: dict, record: str, trusted_key: str) -> Non
     )
 
 
-def _detect_format(path: str) -> str:
+def _detect_format(path: str, *, max_bytes: int = DEFAULT_MAX_BYTES) -> str:
     suffix = Path(path).suffix.lower()
     if suffix in {".jsonl", ".ndjson"}:
         return "jsonl"
     if suffix == ".json":
+        source = Path(path)
+        try:
+            if source.stat().st_size > max_bytes:
+                return "otel"
+            raw = json.loads(source.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return "otel"
+        if isinstance(raw, dict) and isinstance(raw.get("envelope"), dict):
+            envelope = raw["envelope"]
+            if "intent" in envelope and "decision" in envelope and "delegations" in envelope:
+                return "aps"
         return "otel"
     return "jsonl"
 
@@ -84,7 +96,21 @@ def _add_limits(parser: argparse.ArgumentParser) -> None:
 
 
 def _reconstruct_input(args) -> dict:
-    fmt = _detect_format(args.input) if args.format == "auto" else args.format
+    fmt = _detect_format(args.input, max_bytes=args.max_bytes) if args.format == "auto" else args.format
+    if fmt == "aps":
+        if args.trace_id:
+            raise ValueError("--trace-id is not valid with APS input")
+        raw = Path(args.input).read_bytes()
+        if len(raw) > args.max_bytes:
+            raise ValueError(f"input size {len(raw)} exceeds max_bytes={args.max_bytes}")
+        document = json.loads(raw.decode("utf-8"))
+        if not isinstance(document, dict):
+            raise ValueError("APS input must be a JSON object")
+        incident = reconstruct_aps_fixture(document)
+        incident["input_sha256"] = hashlib.sha256(raw).hexdigest()
+        incident["input_format"] = "aps-oracle-safety-check-v1"
+        return incident
+
     if fmt == "jsonl":
         if args.trace_id:
             raise ValueError("--trace-id is only valid with OTLP input")
@@ -177,6 +203,8 @@ def _run(args, parser: argparse.ArgumentParser) -> None:
             parser.error("--trace-record and --trace-key must be supplied together")
         incident = _reconstruct_input(args)
         if args.trace_record:
+            if incident.get("schema") == "agent-replay.aps-authority-reconstruction.v1":
+                raise ValueError("TRACE supplementary evidence is not supported for APS reconstruction")
             _attach_trace_evidence(incident, args.trace_record, args.trace_key)
         _emit(incident, args.json, args.output)
         return
@@ -205,7 +233,7 @@ def main():
 
     reconstruct_parser = sub.add_parser("reconstruct", help="Reconstruct an incident from canonical JSONL or OTLP JSON")
     reconstruct_parser.add_argument("input")
-    reconstruct_parser.add_argument("--format", choices=("auto", "jsonl", "otel"), default="auto")
+    reconstruct_parser.add_argument("--format", choices=("auto", "jsonl", "otel", "aps"), default="auto")
     reconstruct_parser.add_argument("--trace-id")
     reconstruct_parser.add_argument("--json", action="store_true")
     reconstruct_parser.add_argument("-o", "--output", help="output path; default stdout")

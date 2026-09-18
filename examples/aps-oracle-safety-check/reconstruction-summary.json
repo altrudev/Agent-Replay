@@ -1,0 +1,457 @@
+{
+  "schema": "agent-replay.aps-pinned-reconstruction-summary.v1",
+  "source_repository": "Agent-Authority-Conformance/aps-conformance-suite",
+  "source_revision": "6e8b05b202d727ef18e84e100fc31db11f36529f",
+  "fixture_family": "fixtures/cross-stack/oracle-safety-check/oracle-safety-check-v1",
+  "generated_for": "Agent Replay APS interoperability reconstruction",
+  "evidence_boundary": "APS fixture is pre-dispatch. No post-execution event is present, so execution remains unobserved in every case.",
+  "cases": [
+    {
+      "fixture": "pass",
+      "aps_expected": "allowed",
+      "aps_reasons": [],
+      "claimed_actor": "did:aps:insight-agent-001",
+      "intent_signer": "did:aps:insight-agent-001",
+      "authority_root": "did:aps:insight-principal-001",
+      "authority_status": "VALID",
+      "delegation_links": [
+        {
+          "issuer": "did:aps:insight-principal-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623",
+          "parent_delegation_id": null
+        },
+        {
+          "issuer": "did:aps:insight-agent-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:121f9b5a35fec3cff82456c9e1d90e7c8f8a26ceb0e991927e61258da0724c8b",
+          "parent_delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623"
+        }
+      ],
+      "policy_issuer": "did:aps:insight-gateway-001",
+      "policy_signer": "did:aps:insight-gateway-001",
+      "policy_authentication": "CONSISTENT_WITH_FIXTURE",
+      "policy_verdict": "permit",
+      "action_ref": "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5",
+      "action_ref_matched": true,
+      "observed_execution": [],
+      "execution_status": "NOT_OBSERVED",
+      "permit_is_execution": false
+    },
+    {
+      "fixture": "caution",
+      "aps_expected": "allowed",
+      "aps_reasons": [],
+      "claimed_actor": "did:aps:insight-agent-001",
+      "intent_signer": "did:aps:insight-agent-001",
+      "authority_root": "did:aps:insight-principal-001",
+      "authority_status": "VALID",
+      "delegation_links": [
+        {
+          "issuer": "did:aps:insight-principal-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623",
+          "parent_delegation_id": null
+        },
+        {
+          "issuer": "did:aps:insight-agent-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:121f9b5a35fec3cff82456c9e1d90e7c8f8a26ceb0e991927e61258da0724c8b",
+          "parent_delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623"
+        }
+      ],
+      "policy_issuer": "did:aps:insight-gateway-001",
+      "policy_signer": "did:aps:insight-gateway-001",
+      "policy_authentication": "CONSISTENT_WITH_FIXTURE",
+      "policy_verdict": "permit",
+      "action_ref": "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5",
+      "action_ref_matched": true,
+      "observed_execution": [],
+      "execution_status": "NOT_OBSERVED",
+      "permit_is_execution": false
+    },
+    {
+      "fixture": "danger",
+      "aps_expected": "halt",
+      "aps_reasons": [
+        "HALT_VERDICT_DANGER"
+      ],
+      "claimed_actor": "did:aps:insight-agent-001",
+      "intent_signer": "did:aps:insight-agent-001",
+      "authority_root": "did:aps:insight-principal-001",
+      "authority_status": "NOT_ESTABLISHED",
+      "delegation_links": [
+        {
+          "issuer": "did:aps:insight-principal-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623",
+          "parent_delegation_id": null
+        },
+        {
+          "issuer": "did:aps:insight-agent-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:121f9b5a35fec3cff82456c9e1d90e7c8f8a26ceb0e991927e61258da0724c8b",
+          "parent_delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623"
+        }
+      ],
+      "policy_issuer": "did:aps:insight-gateway-001",
+      "policy_signer": "did:aps:insight-gateway-001",
+      "policy_authentication": "CONSISTENT_WITH_FIXTURE",
+      "policy_verdict": "permit",
+      "action_ref": "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5",
+      "action_ref_matched": true,
+      "observed_execution": [],
+      "execution_status": "NOT_OBSERVED",
+      "permit_is_execution": false
+    },
+    {
+      "fixture": "block",
+      "aps_expected": "halt",
+      "aps_reasons": [
+        "HALT_VERDICT_BLOCK"
+      ],
+      "claimed_actor": "did:aps:insight-agent-001",
+      "intent_signer": "did:aps:insight-agent-001",
+      "authority_root": "did:aps:insight-principal-001",
+      "authority_status": "NOT_ESTABLISHED",
+      "delegation_links": [
+        {
+          "issuer": "did:aps:insight-principal-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623",
+          "parent_delegation_id": null
+        },
+        {
+          "issuer": "did:aps:insight-agent-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:121f9b5a35fec3cff82456c9e1d90e7c8f8a26ceb0e991927e61258da0724c8b",
+          "parent_delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623"
+        }
+      ],
+      "policy_issuer": "did:aps:insight-gateway-001",
+      "policy_signer": "did:aps:insight-gateway-001",
+      "policy_authentication": "CONSISTENT_WITH_FIXTURE",
+      "policy_verdict": "permit",
+      "action_ref": "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5",
+      "action_ref_matched": true,
+      "observed_execution": [],
+      "execution_status": "NOT_OBSERVED",
+      "permit_is_execution": false
+    },
+    {
+      "fixture": "expired-oracle",
+      "aps_expected": "halt",
+      "aps_reasons": [
+        "HALT_ORACLE_EVIDENCE",
+        "EXPIRED"
+      ],
+      "claimed_actor": "did:aps:insight-agent-001",
+      "intent_signer": "did:aps:insight-agent-001",
+      "authority_root": "did:aps:insight-principal-001",
+      "authority_status": "NOT_ESTABLISHED",
+      "delegation_links": [
+        {
+          "issuer": "did:aps:insight-principal-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623",
+          "parent_delegation_id": null
+        },
+        {
+          "issuer": "did:aps:insight-agent-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:121f9b5a35fec3cff82456c9e1d90e7c8f8a26ceb0e991927e61258da0724c8b",
+          "parent_delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623"
+        }
+      ],
+      "policy_issuer": "did:aps:insight-gateway-001",
+      "policy_signer": "did:aps:insight-gateway-001",
+      "policy_authentication": "CONSISTENT_WITH_FIXTURE",
+      "policy_verdict": "permit",
+      "action_ref": "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5",
+      "action_ref_matched": true,
+      "observed_execution": [],
+      "execution_status": "NOT_OBSERVED",
+      "permit_is_execution": false
+    },
+    {
+      "fixture": "tampered-oracle",
+      "aps_expected": "halt",
+      "aps_reasons": [
+        "HALT_ORACLE_EVIDENCE",
+        "UID_MISMATCH"
+      ],
+      "claimed_actor": "did:aps:insight-agent-001",
+      "intent_signer": "did:aps:insight-agent-001",
+      "authority_root": "did:aps:insight-principal-001",
+      "authority_status": "NOT_ESTABLISHED",
+      "delegation_links": [
+        {
+          "issuer": "did:aps:insight-principal-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623",
+          "parent_delegation_id": null
+        },
+        {
+          "issuer": "did:aps:insight-agent-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:121f9b5a35fec3cff82456c9e1d90e7c8f8a26ceb0e991927e61258da0724c8b",
+          "parent_delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623"
+        }
+      ],
+      "policy_issuer": "did:aps:insight-gateway-001",
+      "policy_signer": "did:aps:insight-gateway-001",
+      "policy_authentication": "CONSISTENT_WITH_FIXTURE",
+      "policy_verdict": "permit",
+      "action_ref": "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5",
+      "action_ref_matched": true,
+      "observed_execution": [],
+      "execution_status": "NOT_OBSERVED",
+      "permit_is_execution": false
+    },
+    {
+      "fixture": "wrong-signer",
+      "aps_expected": "halt",
+      "aps_reasons": [
+        "HALT_ORACLE_EVIDENCE",
+        "SIGNATURE_INVALID"
+      ],
+      "claimed_actor": "did:aps:insight-agent-001",
+      "intent_signer": "did:aps:insight-agent-001",
+      "authority_root": "did:aps:insight-principal-001",
+      "authority_status": "NOT_ESTABLISHED",
+      "delegation_links": [
+        {
+          "issuer": "did:aps:insight-principal-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623",
+          "parent_delegation_id": null
+        },
+        {
+          "issuer": "did:aps:insight-agent-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:121f9b5a35fec3cff82456c9e1d90e7c8f8a26ceb0e991927e61258da0724c8b",
+          "parent_delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623"
+        }
+      ],
+      "policy_issuer": "did:aps:insight-gateway-001",
+      "policy_signer": "did:aps:insight-gateway-001",
+      "policy_authentication": "CONSISTENT_WITH_FIXTURE",
+      "policy_verdict": "permit",
+      "action_ref": "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5",
+      "action_ref_matched": true,
+      "observed_execution": [],
+      "execution_status": "NOT_OBSERVED",
+      "permit_is_execution": false
+    },
+    {
+      "fixture": "authority-denied",
+      "aps_expected": "halt",
+      "aps_reasons": [
+        "HALT_AUTHORITY",
+        "POLICY_DENIED"
+      ],
+      "claimed_actor": "did:aps:insight-agent-001",
+      "intent_signer": "did:aps:insight-agent-001",
+      "authority_root": "did:aps:insight-principal-001",
+      "authority_status": "DENIED",
+      "delegation_links": [
+        {
+          "issuer": "did:aps:insight-principal-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623",
+          "parent_delegation_id": null
+        },
+        {
+          "issuer": "did:aps:insight-agent-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:121f9b5a35fec3cff82456c9e1d90e7c8f8a26ceb0e991927e61258da0724c8b",
+          "parent_delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623"
+        }
+      ],
+      "policy_issuer": "did:aps:insight-gateway-001",
+      "policy_signer": "did:aps:insight-gateway-001",
+      "policy_authentication": "CONSISTENT_WITH_FIXTURE",
+      "policy_verdict": "deny",
+      "action_ref": "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5",
+      "action_ref_matched": true,
+      "observed_execution": [],
+      "execution_status": "NOT_OBSERVED",
+      "permit_is_execution": false
+    },
+    {
+      "fixture": "sig-tampered",
+      "aps_expected": "halt",
+      "aps_reasons": [
+        "HALT_AUTHORITY",
+        "SIGNATURE_INVALID"
+      ],
+      "claimed_actor": "did:aps:insight-agent-001",
+      "intent_signer": "did:aps:insight-agent-001",
+      "authority_root": "did:aps:insight-principal-001",
+      "authority_status": "UNVERIFIED",
+      "delegation_links": [
+        {
+          "issuer": "did:aps:insight-principal-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623",
+          "parent_delegation_id": null
+        },
+        {
+          "issuer": "did:aps:insight-agent-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:121f9b5a35fec3cff82456c9e1d90e7c8f8a26ceb0e991927e61258da0724c8b",
+          "parent_delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623"
+        }
+      ],
+      "policy_issuer": "did:aps:insight-gateway-001",
+      "policy_signer": "did:aps:insight-gateway-001",
+      "policy_authentication": "FAILED_BY_FIXTURE_ORACLE",
+      "policy_verdict": "permit",
+      "action_ref": "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5",
+      "action_ref_matched": true,
+      "observed_execution": [],
+      "execution_status": "NOT_OBSERVED",
+      "permit_is_execution": false
+    },
+    {
+      "fixture": "digest-mismatch",
+      "aps_expected": "halt",
+      "aps_reasons": [
+        "HALT_ORACLE_EVIDENCE",
+        "EVIDENCE_DIGEST_MISMATCH"
+      ],
+      "claimed_actor": "did:aps:insight-agent-001",
+      "intent_signer": "did:aps:insight-agent-001",
+      "authority_root": "did:aps:insight-principal-001",
+      "authority_status": "NOT_ESTABLISHED",
+      "delegation_links": [
+        {
+          "issuer": "did:aps:insight-principal-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623",
+          "parent_delegation_id": null
+        },
+        {
+          "issuer": "did:aps:insight-agent-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:121f9b5a35fec3cff82456c9e1d90e7c8f8a26ceb0e991927e61258da0724c8b",
+          "parent_delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623"
+        }
+      ],
+      "policy_issuer": "did:aps:insight-gateway-001",
+      "policy_signer": "did:aps:insight-gateway-001",
+      "policy_authentication": "CONSISTENT_WITH_FIXTURE",
+      "policy_verdict": "permit",
+      "action_ref": "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5",
+      "action_ref_matched": true,
+      "observed_execution": [],
+      "execution_status": "NOT_OBSERVED",
+      "permit_is_execution": false
+    },
+    {
+      "fixture": "evidence-missing",
+      "aps_expected": "halt",
+      "aps_reasons": [
+        "HALT_ORACLE_EVIDENCE",
+        "EVIDENCE_MISSING"
+      ],
+      "claimed_actor": "did:aps:insight-agent-001",
+      "intent_signer": "did:aps:insight-agent-001",
+      "authority_root": "did:aps:insight-principal-001",
+      "authority_status": "NOT_ESTABLISHED",
+      "delegation_links": [
+        {
+          "issuer": "did:aps:insight-principal-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623",
+          "parent_delegation_id": null
+        },
+        {
+          "issuer": "did:aps:insight-agent-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:121f9b5a35fec3cff82456c9e1d90e7c8f8a26ceb0e991927e61258da0724c8b",
+          "parent_delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623"
+        }
+      ],
+      "policy_issuer": "did:aps:insight-gateway-001",
+      "policy_signer": "did:aps:insight-gateway-001",
+      "policy_authentication": "CONSISTENT_WITH_FIXTURE",
+      "policy_verdict": "permit",
+      "action_ref": "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5",
+      "action_ref_matched": true,
+      "observed_execution": [],
+      "execution_status": "NOT_OBSERVED",
+      "permit_is_execution": false
+    },
+    {
+      "fixture": "delegation-expired",
+      "aps_expected": "halt",
+      "aps_reasons": [
+        "HALT_AUTHORITY",
+        "AUTH_DELEGATION_EXPIRED"
+      ],
+      "claimed_actor": "did:aps:insight-agent-001",
+      "intent_signer": "did:aps:insight-agent-001",
+      "authority_root": "did:aps:insight-principal-001",
+      "authority_status": "EXPIRED",
+      "delegation_links": [
+        {
+          "issuer": "did:aps:insight-principal-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623",
+          "parent_delegation_id": null
+        },
+        {
+          "issuer": "did:aps:insight-agent-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:121f9b5a35fec3cff82456c9e1d90e7c8f8a26ceb0e991927e61258da0724c8b",
+          "parent_delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623"
+        }
+      ],
+      "policy_issuer": "did:aps:insight-gateway-001",
+      "policy_signer": "did:aps:insight-gateway-001",
+      "policy_authentication": "CONSISTENT_WITH_FIXTURE",
+      "policy_verdict": "permit",
+      "action_ref": "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5",
+      "action_ref_matched": true,
+      "observed_execution": [],
+      "execution_status": "NOT_OBSERVED",
+      "permit_is_execution": false
+    },
+    {
+      "fixture": "delegation-revoked",
+      "aps_expected": "halt",
+      "aps_reasons": [
+        "HALT_AUTHORITY",
+        "AUTH_DELEGATION_REVOKED"
+      ],
+      "claimed_actor": "did:aps:insight-agent-001",
+      "intent_signer": "did:aps:insight-agent-001",
+      "authority_root": "did:aps:insight-principal-001",
+      "authority_status": "REVOKED",
+      "delegation_links": [
+        {
+          "issuer": "did:aps:insight-principal-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623",
+          "parent_delegation_id": null
+        },
+        {
+          "issuer": "did:aps:insight-agent-001",
+          "subject": "did:aps:insight-agent-001",
+          "delegation_id": "sha256:121f9b5a35fec3cff82456c9e1d90e7c8f8a26ceb0e991927e61258da0724c8b",
+          "parent_delegation_id": "sha256:c9e9b8b0209ee019d43285f2cd0d7bfbfd2adc0ead1368a1bb3536945a41c623"
+        }
+      ],
+      "policy_issuer": "did:aps:insight-gateway-001",
+      "policy_signer": "did:aps:insight-gateway-001",
+      "policy_authentication": "CONSISTENT_WITH_FIXTURE",
+      "policy_verdict": "permit",
+      "action_ref": "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5",
+      "action_ref_matched": true,
+      "observed_execution": [],
+      "execution_status": "NOT_OBSERVED",
+      "permit_is_execution": false
+    }
+  ]
+}
