@@ -376,3 +376,138 @@ def test_same_receipt_can_be_reused_but_nonce_payload_collision_is_rejected():
     assert items[0]["revocation_receipt"]["status"] == "VERIFIED"
     assert items[1]["revocation_receipt"]["status"] == "NONCE_COLLISION"
     assert result["boundary_evidence"]["verified_revocation_receipts"] == 1
+
+
+def _full_boundary_case(*, execution_permitted, evaluation_state="REVOKED", include_evaluation=True):
+    policy_key = Ed25519PrivateKey.generate()
+    boundary_key = Ed25519PrivateKey.generate()
+    expected = {
+        "execution_permitted": False,
+        "authority_status": "REVOKED",
+        "authority_version": "18",
+    }
+    observed = {
+        "execution_permitted": execution_permitted,
+        "authority_status": "REVOKED",
+        "authority_version": "18",
+    }
+    policy_payload = {
+        "policy_id": "pay-policy",
+        "policy_version": "18",
+        "authority_version": "18",
+        "event_id": "exec-1",
+        "subject": "payment",
+        "action": "execute",
+        "authority_scope": "payment:123",
+        "expected_sha256": hashlib.sha256(_canonical(expected)).hexdigest(),
+    }
+    revocation_digest = _event_digest(
+        "rev-evt",
+        "2026-09-17T20:58:00.000000Z",
+        "authority",
+        "authority_revoked",
+        observed={"authority_status": "REVOKED", "authority_version": "18"},
+    )
+    receipt_payload = {
+        "revocation_id": "rev-1",
+        "authority_version": "18",
+        "execution_boundary_id": "payment-boundary",
+        "received_at": "2026-09-17T20:59:00Z",
+        "policy_id": "pay-policy",
+        "policy_version": "18",
+        "policy_sha256": hashlib.sha256(_canonical(policy_payload)).hexdigest(),
+        "revocation_sha256": revocation_digest,
+        "revocation_event_id": "rev-evt",
+        "nonce": "receipt-1",
+    }
+    evidence = {
+        "policy_proof": _signed(policy_key, "policy-key", policy_payload),
+        "revocation_receipt": _signed(boundary_key, "boundary-key", receipt_payload),
+    }
+    if include_evaluation:
+        evaluation_payload = {
+            "evaluation_id": "eval-1",
+            "event_id": "exec-1",
+            "execution_boundary_id": "payment-boundary",
+            "evaluated_at": "2026-09-17T20:59:30Z",
+            "authority_state": evaluation_state,
+            "authority_version": "18",
+            "policy_id": "pay-policy",
+            "policy_version": "18",
+            "policy_sha256": hashlib.sha256(_canonical(policy_payload)).hexdigest(),
+            "revocation_receipt_sha256": hashlib.sha256(_canonical(receipt_payload)).hexdigest(),
+            "observed_sha256": hashlib.sha256(_canonical(observed)).hexdigest(),
+        }
+        evidence["execution_evaluation"] = _signed(
+            boundary_key, "boundary-key", evaluation_payload
+        )
+
+    records = [{
+        "event_id": "rev-evt",
+        "timestamp": "2026-09-17T20:58:00Z",
+        "actor": "authority",
+        "kind": "authority_revoked",
+        "observed": {"authority_status": "REVOKED", "authority_version": "18"},
+    }, {
+        "event_id": "exec-1",
+        "timestamp": "2026-09-17T21:00:00Z",
+        "actor": "executor",
+        "kind": "execution_decision",
+        "expected": expected,
+        "observed": observed,
+        "evidence": evidence,
+    }]
+    return reconstruct_records(
+        records,
+        input_sha256="0" * 64,
+        trust_store={
+            "policy-key": _public_b64(policy_key),
+            "boundary-key": _public_b64(boundary_key),
+        },
+    )
+
+
+def test_verified_delivery_without_evaluation_does_not_claim_enforcement():
+    result = _full_boundary_case(
+        execution_permitted=True,
+        include_evaluation=False,
+    )
+    item = result["boundary_evidence"]["events"][0]
+    assert item["revocation_receipt"]["status"] == "VERIFIED"
+    assert item["execution_evaluation"]["status"] == "NOT_SUPPLIED"
+    assert item["enforcement"]["status"] == "DELIVERY_VERIFIED_EVALUATION_UNRESOLVED"
+    assert result["boundary_evidence"]["verified_execution_evaluations"] == 0
+    assert result["boundary_evidence"]["enforcement_diverged_events"] == 0
+
+
+def test_verified_evaluation_and_fail_closed_decision_are_consistent():
+    result = _full_boundary_case(execution_permitted=False)
+    item = result["boundary_evidence"]["events"][0]
+    assert item["revocation_receipt"]["status"] == "VERIFIED"
+    assert item["execution_evaluation"]["status"] == "VERIFIED"
+    assert item["enforcement"]["status"] == "ENFORCEMENT_CONSISTENT"
+    assert result["boundary_evidence"]["verified_execution_evaluations"] == 1
+    assert result["boundary_evidence"]["enforcement_consistent_events"] == 1
+    assert result["first_provable_divergence"] is None
+
+
+def test_verified_evaluation_and_fail_open_decision_are_divergent():
+    result = _full_boundary_case(execution_permitted=True)
+    item = result["boundary_evidence"]["events"][0]
+    assert item["revocation_receipt"]["status"] == "VERIFIED"
+    assert item["execution_evaluation"]["status"] == "VERIFIED"
+    assert item["enforcement"]["status"] == "ENFORCEMENT_DIVERGED"
+    assert result["boundary_evidence"]["enforcement_diverged_events"] == 1
+    assert result["first_provable_divergence"]["event_id"] == "exec-1"
+
+
+def test_evaluation_must_use_revoked_state_not_merely_reference_receipt():
+    result = _full_boundary_case(
+        execution_permitted=False,
+        evaluation_state="ACTIVE",
+    )
+    item = result["boundary_evidence"]["events"][0]
+    assert item["revocation_receipt"]["status"] == "VERIFIED"
+    assert item["execution_evaluation"]["status"] == "STATE_MISMATCH"
+    assert item["enforcement"]["status"] == "DELIVERY_VERIFIED_EVALUATION_UNRESOLVED"
+    assert result["boundary_evidence"]["verified_execution_evaluations"] == 0
