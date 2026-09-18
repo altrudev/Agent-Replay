@@ -71,11 +71,43 @@ The signed receipt payload must include:
 
 The receipt must bind the canonical Agent Replay representation of the supplied revocation event, the exact signed policy payload, and the same authority version. `received_at` must be no later than the execution event and no earlier than the bound revocation event.
 
+## Execution-time evaluation proof
+
+A receipt proves delivery, not enforcement. To establish that the execution boundary actually evaluated the received revocation before deciding, the execution event may also carry `evidence.execution_evaluation`.
+
+The signed evaluation payload must include:
+
+- `evaluation_id`
+- `event_id`
+- `execution_boundary_id`
+- `evaluated_at`
+- `authority_state`
+- `authority_version`
+- `policy_id`
+- `policy_version`
+- `policy_sha256`
+- `revocation_receipt_sha256`
+- `observed_sha256`
+
+Agent Replay verifies that the evaluation happened after the verified delivery receipt and no later than the execution event, names the same boundary, evaluates the state/version established by the bound revocation event, binds the same policy, binds the exact verified receipt payload, and binds the execution event's observed decision state.
+
+This creates three explicit evidence stages:
+
+```
+revocation delivery -> execution-time evaluation -> enforcement decision
+```
+
+The states remain separate:
+
+- `DELIVERY_VERIFIED_EVALUATION_UNRESOLVED`: delivery is proven, evaluation is not.
+- `ENFORCEMENT_CONSISTENT`: authenticated policy, delivery, evaluation, and observed decision agree.
+- `ENFORCEMENT_DIVERGED`: authenticated policy, delivery, and evaluation are proven, but the observed decision diverges from the authenticated expectation.
+
 ## Claim boundary
 
 A verified policy proof establishes that the supplied expected state was signed by a key the caller explicitly trusted. It does not prove that the signer was legally or organizationally entitled to define that policy.
 
-A verified receipt establishes that the trusted boundary key signed receipt of the bound revocation event by the stated time. It does not, by itself, authenticate the identity continuity between that boundary and every later execution event.
+A verified receipt establishes that the trusted boundary key signed receipt of the bound revocation event by the stated time. A verified evaluation separately establishes that a trusted key for the same named execution boundary signed an evaluation after delivery and bound it to the observed execution state. Neither proof alone establishes real-world identity continuity beyond the caller's trust configuration.
 
 Receipt nonce replay detection is incident-local. Cross-incident replay prevention belongs to the issuing boundary or a persistent verifier.
 
