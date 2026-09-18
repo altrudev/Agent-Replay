@@ -4,6 +4,7 @@ import json
 import tempfile
 from pathlib import Path
 
+from agent_replay.aps import reconstruct_aps_fixture
 from agent_replay.otel import write_canonical_jsonl
 from agent_replay.reconstruct import reconstruct
 from agent_replay.report import render_text
@@ -22,6 +23,15 @@ def _reconstruct(
     input_format: str,
     trace_id: str | None = None,
 ):
+    if input_format == "aps":
+        if trace_id:
+            raise ValueError("trace_id is not valid for APS input")
+        raw = Path(input_path).read_bytes()
+        document = json.loads(raw.decode("utf-8"))
+        if not isinstance(document, dict):
+            raise ValueError("APS input must be a JSON object")
+        return reconstruct_aps_fixture(document, input_sha256=hashlib.sha256(raw).hexdigest())
+
     if input_format == "jsonl":
         if trace_id:
             raise ValueError("trace_id is only valid for OTLP input")
@@ -50,7 +60,7 @@ def _add_input_args(target):
     target.add_argument("input")
     target.add_argument(
         "--format",
-        choices=("jsonl", "otel"),
+        choices=("jsonl", "otel", "aps"),
         default="jsonl",
     )
     target.add_argument(
