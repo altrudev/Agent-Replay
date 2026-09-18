@@ -294,11 +294,12 @@ def load_otlp_json(
     max_events: int = DEFAULT_MAX_EVENTS,
 ) -> list[dict[str, Any]]:
     source = Path(path)
-    raw = source.read_bytes()
-    if len(raw) > max_bytes:
+    size = source.stat().st_size
+    if size > max_bytes:
         raise OpenTelemetryFormatError(
-            f"input size {len(raw)} exceeds max_bytes={max_bytes}"
+            f"input size {size} exceeds max_bytes={max_bytes}"
         )
+    raw = source.read_bytes()
     try:
         payload = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
