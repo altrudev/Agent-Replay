@@ -116,58 +116,60 @@ def _aps_to_radial_spec(report: dict[str, Any]) -> dict[str, Any]:
         node_id = f"aps:delegation:{index}"
         node(node_id, {"authority", "delegation", "time", "provenance"}, authority_value=str(link.get("issuer") or ""))
         if previous:
+            has_time_bounds = bool(link.get("not_before") and link.get("not_after"))
             edges.append({
                 "src": previous, "dst": node_id, "relation": "delegates",
                 "time_gap": 0.0, "independently_mutable": False,
-                "shared_atomic_boundary": False, "freshness_bound": True,
+                "shared_atomic_boundary": False, "freshness_bound": has_time_bounds,
                 "context_bound": True,
                 "provenance": {
                     "relation": "EXPLICIT", "time_gap": "DEFAULT",
                     "independently_mutable": "DEFAULT", "shared_atomic_boundary": "DEFAULT",
-                    "freshness_bound": "EXPLICIT", "context_bound": "EXPLICIT",
+                    "freshness_bound": "EXPLICIT" if has_time_bounds else "DEFAULT",
+                    "context_bound": "EXPLICIT",
                 },
             })
         previous = node_id
 
-    node("aps:intent", {"identity", "action", "authority", "representation", "provenance"}, authority_value=str(identity.get("claimed_actor") or ""))
+    node("aps:intent", {"identity", "action", "authority", "representation", "provenance"})
     if previous and (binding.get("delegation_ref") or {}).get("matched"):
         edges.append({
-            "src": previous, "dst": "aps:intent", "relation": "authorizes_claim",
+            "src": previous, "dst": "aps:intent", "relation": "delegation_ref_binds",
             "time_gap": 0.0, "independently_mutable": False,
-            "shared_atomic_boundary": False, "freshness_bound": True,
+            "shared_atomic_boundary": False, "freshness_bound": False,
             "context_bound": True,
             "provenance": {
                 "relation": "EXPLICIT", "time_gap": "DEFAULT",
                 "independently_mutable": "DEFAULT", "shared_atomic_boundary": "DEFAULT",
-                "freshness_bound": "EXPLICIT", "context_bound": "EXPLICIT",
+                "freshness_bound": "DEFAULT", "context_bound": "EXPLICIT",
             },
         })
 
-    node("aps:policy", {"policy", "authority", "decision", "representation", "provenance"}, authority_value=str(policy.get("issuer") or ""))
+    node("aps:policy", {"policy", "authority", "decision", "representation", "provenance"})
     if (binding.get("receipt_link") or {}).get("matched"):
         edges.append({
-            "src": "aps:intent", "dst": "aps:policy", "relation": "receipt_precedes",
-            "time_gap": 0.0, "independently_mutable": True,
-            "shared_atomic_boundary": False, "freshness_bound": True,
+            "src": "aps:intent", "dst": "aps:policy", "relation": "receipt_link",
+            "time_gap": 0.0, "independently_mutable": False,
+            "shared_atomic_boundary": False, "freshness_bound": False,
             "context_bound": True,
             "provenance": {
                 "relation": "EXPLICIT", "time_gap": "DEFAULT",
-                "independently_mutable": "INFERRED", "shared_atomic_boundary": "DEFAULT",
-                "freshness_bound": "EXPLICIT", "context_bound": "EXPLICIT",
+                "independently_mutable": "DEFAULT", "shared_atomic_boundary": "DEFAULT",
+                "freshness_bound": "DEFAULT", "context_bound": "EXPLICIT",
             },
         })
 
     for index, event in enumerate(execution.get("action_bound_events") or [], 1):
         node_id = f"aps:execution:{index}"
-        node(node_id, {"execution", "action", "result", "consequence", "provenance"}, authority_value=str(event.get("actor") or event.get("executor") or ""))
+        node(node_id, {"execution", "action", "result", "consequence", "provenance"})
         edges.append({
-            "src": "aps:policy", "dst": node_id, "relation": "precedes_execution_evidence",
-            "time_gap": 0.0, "independently_mutable": True,
+            "src": "aps:intent", "dst": node_id, "relation": "same_action_ref",
+            "time_gap": 0.0, "independently_mutable": False,
             "shared_atomic_boundary": False, "freshness_bound": False,
             "context_bound": True,
             "provenance": {
                 "relation": "EXPLICIT", "time_gap": "DEFAULT",
-                "independently_mutable": "INFERRED", "shared_atomic_boundary": "DEFAULT",
+                "independently_mutable": "DEFAULT", "shared_atomic_boundary": "DEFAULT",
                 "freshness_bound": "DEFAULT", "context_bound": "EXPLICIT",
             },
         })
