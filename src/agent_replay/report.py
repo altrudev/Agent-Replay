@@ -106,6 +106,7 @@ def _render_aps_text(report: dict[str, Any]) -> str:
         f"Status: {execution.get('status')}",
         f"Bound events: {len(execution.get('bound_events', []))}",
         f"Unbound events: {len(execution.get('unbound_events', []))}",
+        f"Malformed events: {execution.get('malformed_event_count', 0)}",
         f"Independent authentication: {execution.get('independent_authentication')}",
         f"Permit is execution: {_fmt(boundary.get('permit_is_execution'))}",
         "",
