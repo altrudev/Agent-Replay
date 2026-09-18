@@ -136,14 +136,20 @@ def _execution_evidence(
     raw = envelope.get("execution_events")
     if raw is None:
         raw = document.get("execution_events")
-    events = [item for item in raw if isinstance(item, dict)] if isinstance(raw, list) else []
+    if isinstance(raw, list):
+        events = [item for item in raw if isinstance(item, dict)]
+        malformed_count = len(raw) - len(events)
+    else:
+        events = []
+        malformed_count = 0
 
-    if not events:
+    if not events and malformed_count == 0:
         return {
             "status": "NO_EXECUTION_EVIDENCE",
             "events": [],
             "bound_events": [],
             "unbound_events": [],
+            "malformed_event_count": 0,
             "independent_authentication": "NOT_VERIFIED",
         }
 
@@ -159,7 +165,7 @@ def _execution_evidence(
         else:
             unbound.append(event)
 
-    if bound and not unbound:
+    if bound and not unbound and malformed_count == 0:
         status = "EXECUTION_BOUND_TO_ACTION"
     elif bound:
         status = "EXECUTION_EVIDENCE_PARTIALLY_BOUND"
@@ -171,6 +177,7 @@ def _execution_evidence(
         "events": events,
         "bound_events": bound,
         "unbound_events": unbound,
+        "malformed_event_count": malformed_count,
         "independent_authentication": "NOT_VERIFIED",
     }
 
@@ -192,6 +199,8 @@ def reconstruct_aps_fixture(
         raise ValueError("APS envelope intent and decision must be objects")
     if not isinstance(delegations, list):
         raise ValueError("APS envelope delegations must be a list")
+    if not all(isinstance(item, dict) for item in delegations):
+        raise ValueError("APS envelope delegations must contain only objects")
 
     path = _delegation_path(delegations)
     claimed_actor = intent.get("subject_agent") or intent.get("issuer")
@@ -227,7 +236,7 @@ def reconstruct_aps_fixture(
             ),
         },
         "external_conformance": {
-            "source": "APS_FIXTURE_ORACLE",
+            "source": "SUPPLIED_APS_CONFORMANCE_FIELDS",
             "fixture": document.get("fixture"),
             "outcome": document.get("expected"),
             "reasons": list(document.get("expectReasons") or []),
