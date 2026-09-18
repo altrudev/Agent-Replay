@@ -17,6 +17,12 @@ def _kind_dimensions(kind: str) -> tuple[set[str], dict[str, str]]:
         inferred({"policy", "representation", "authority"})
     if "approval" in lowered or "auth" in lowered:
         inferred({"authority", "policy"})
+    if "revok" in lowered:
+        inferred({"authority", "policy", "freshness", "state"})
+    if any(token in lowered for token in ("execution", "execute", "decision", "evaluate", "evaluation")):
+        inferred({"action", "execution", "authority", "policy", "state"})
+    if any(token in lowered for token in ("receipt", "delivery", "propagation")):
+        inferred({"provenance", "observability", "authority", "time"})
     if any(token in lowered for token in ("refund", "payment", "write", "commit", "tool")):
         inferred({"action", "execution", "result", "consequence"})
     if "read" in lowered:
