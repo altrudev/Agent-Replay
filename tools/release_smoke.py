@@ -10,7 +10,7 @@ import tempfile
 import venv
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_VERSION = "0.5.1"
+EXPECTED_VERSION = "0.6.0"
 
 
 def run(argv: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
@@ -74,6 +74,29 @@ def main() -> None:
         run([str(agent_replay), "export-share", str(incident), "-o", str(public)])
         if not public.is_file() or not json.loads(public.read_text(encoding="utf-8")):
             raise SystemExit("installed-wheel public-share export missing or invalid")
+
+        aps = temp / "aps.json"
+        run([
+            str(agent_replay),
+            "reconstruct",
+            "tests/fixtures/aps/oracle-safety-check-v1/pass.json",
+            "--format",
+            "aps",
+            "--json",
+            "-o",
+            str(aps),
+        ])
+        aps_doc = json.loads(aps.read_text(encoding="utf-8"))
+        if aps_doc.get("binding", {}).get("status") != "COMPLETE":
+            raise SystemExit("installed-wheel APS reconstruction did not preserve complete structural binding")
+        if aps_doc.get("execution", {}).get("status") != "NOT_OBSERVED":
+            raise SystemExit("installed-wheel APS reconstruction upgraded missing execution evidence")
+
+        aps_public = temp / "aps-public-share.json"
+        run([str(agent_replay), "export-share", str(aps), "-o", str(aps_public)])
+        aps_public_doc = json.loads(aps_public.read_text(encoding="utf-8"))
+        if aps_public_doc.get("incident", {}).get("schema") != "agent-replay.public-aps-authority.v1":
+            raise SystemExit("installed-wheel APS public-share export missing or invalid")
 
     print("AGENT REPLAY RELEASE SMOKE PASS")
 
