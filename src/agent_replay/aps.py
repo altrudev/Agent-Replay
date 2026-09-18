@@ -119,9 +119,9 @@ def _execution_binding(
                 actor_bound.append(item)
 
     if actor_bound:
-        return "ACTOR_BOUND", action_bound, actor_bound
+        return "EVIDENCE_ACTOR_BOUND", action_bound, actor_bound
     if action_bound:
-        return "ACTION_BOUND", action_bound, []
+        return "EVIDENCE_ACTION_BOUND", action_bound, []
     return "EVIDENCE_PRESENT_UNBOUND", [], []
 
 
@@ -201,7 +201,7 @@ def reconstruct_aps_fixture(
         cannot_establish.append(
             "Whether supplied execution evidence belongs to this action; no execution event binds to the intent action_ref."
         )
-    elif execution_status == "ACTION_BOUND":
+    elif execution_status == "EVIDENCE_ACTION_BOUND":
         cannot_establish.append(
             "Whether the action-bound execution evidence was performed by the claimed actor."
         )
