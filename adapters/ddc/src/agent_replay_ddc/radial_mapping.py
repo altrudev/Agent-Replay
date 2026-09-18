@@ -248,7 +248,7 @@ def _aps_to_radial_spec(report: dict[str, Any]) -> dict[str, Any]:
             "src": "aps:policy", "dst": "aps:execution", "relation": "precedes",
             "time_gap": 0.0, "independently_mutable": True,
             "shared_atomic_boundary": False, "freshness_bound": False,
-            "context_bound": execution.get("status") == "EXECUTION_BOUND_TO_ACTION",
+            "context_bound": execution.get("status") == "EXECUTION_EVIDENCE_BOUND_TO_ACTION",
             "provenance": {key: "EXPLICIT" for key in ("relation","time_gap","independently_mutable","shared_atomic_boundary","freshness_bound","context_bound")},
         },
     ]
