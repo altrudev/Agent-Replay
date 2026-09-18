@@ -3,20 +3,191 @@
   "$id": "https://agent-replay.dev/schemas/aps-authority-reconstruction-v2.schema.json",
   "title": "Agent Replay APS Authority Reconstruction v2",
   "type": "object",
-  "required": ["schema","input_sha256","adapter_validation","input_provenance","external_conformance","identity","authority","policy","binding","execution","observed_execution","execution_status","evidence_boundary"],
+  "required": [
+    "schema",
+    "input_sha256",
+    "adapter_validation",
+    "input_provenance",
+    "external_conformance",
+    "identity",
+    "authority",
+    "policy",
+    "binding",
+    "execution",
+    "observed_execution",
+    "execution_status",
+    "evidence_boundary"
+  ],
   "properties": {
-    "schema": {"const":"agent-replay.aps-authority-reconstruction.v2"},
-    "input_sha256": {"type":["string","null"],"pattern":"^[a-f0-9]{64}$"},
-    "adapter_validation": {"type":"object","required":["repository","revision","fixture_family","claim"]},
-    "input_provenance": {"type":"object","required":["repository","revision","path","provenance_status"],"properties":{"provenance_status":{"enum":["UNKNOWN","CALLER_SUPPLIED"]}}},
-    "external_conformance": {"type":"object","required":["source","fixture","outcome","reasons","sub_results","authority_status"]},
-    "identity": {"type":"object","required":["claimed_actor","intent_issuer","intent_signer","intent_signature_assessment","independent_authentication"]},
-    "authority": {"type":"object","required":["root_principal","delegation_path","structural_binding","independent_cryptographic_verification"],"properties":{"structural_binding":{"enum":["COMPLETE","PARTIAL","BROKEN"]}}},
-    "policy": {"type":"object","required":["issuer","signer","signature_assessment","verdict","reason","independent_authentication"]},
-    "binding": {"type":"object","required":["status","checks"],"properties":{"status":{"enum":["COMPLETE","PARTIAL","BROKEN"]},"checks":{"type":"object","required":["action_ref","receipt_link","delegation_ref","delegation_chain"],"additionalProperties":{"type":"boolean"}}}},
-    "execution": {"type":"object","required":["status","events","bound_events","unbound_events","independent_authentication"],"properties":{"status":{"enum":["NO_EXECUTION_EVIDENCE","EXECUTION_EVIDENCE_UNBOUND","EXECUTION_EVIDENCE_PARTIALLY_BOUND","EXECUTION_BOUND_TO_ACTION"]}}},
-    "observed_execution": {"type":"array"},
-    "execution_status": {"enum":["NO_EXECUTION_EVIDENCE","EXECUTION_EVIDENCE_UNBOUND","EXECUTION_EVIDENCE_PARTIALLY_BOUND","EXECUTION_BOUND_TO_ACTION"]},
-    "evidence_boundary": {"type":"object","required":["permit_is_execution","external_conformance_is_replay_verification","independent_crypto_verification_performed","claims"],"properties":{"permit_is_execution":{"const":false},"external_conformance_is_replay_verification":{"const":false},"independent_crypto_verification_performed":{"const":false}}}
+    "schema": {
+      "const": "agent-replay.aps-authority-reconstruction.v2"
+    },
+    "input_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "adapter_validation": {
+      "type": "object",
+      "required": [
+        "repository",
+        "revision",
+        "fixture_family",
+        "claim"
+      ]
+    },
+    "input_provenance": {
+      "type": "object",
+      "required": [
+        "repository",
+        "revision",
+        "path",
+        "provenance_status"
+      ],
+      "properties": {
+        "provenance_status": {
+          "enum": [
+            "UNKNOWN",
+            "CALLER_SUPPLIED"
+          ]
+        }
+      }
+    },
+    "external_conformance": {
+      "type": "object",
+      "required": [
+        "source",
+        "fixture",
+        "outcome",
+        "reasons",
+        "sub_results",
+        "authority_status"
+      ]
+    },
+    "identity": {
+      "type": "object",
+      "required": [
+        "claimed_actor",
+        "intent_issuer",
+        "intent_signer",
+        "intent_signature_assessment",
+        "independent_authentication"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "required": [
+        "root_principal",
+        "delegation_path",
+        "structural_binding",
+        "independent_cryptographic_verification"
+      ],
+      "properties": {
+        "structural_binding": {
+          "enum": [
+            "COMPLETE",
+            "PARTIAL",
+            "BROKEN"
+          ]
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "issuer",
+        "signer",
+        "signature_assessment",
+        "verdict",
+        "reason",
+        "independent_authentication"
+      ]
+    },
+    "binding": {
+      "type": "object",
+      "required": [
+        "status",
+        "checks"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "COMPLETE",
+            "PARTIAL",
+            "BROKEN"
+          ]
+        },
+        "checks": {
+          "type": "object",
+          "required": [
+            "action_ref",
+            "receipt_link",
+            "delegation_ref",
+            "delegation_chain"
+          ],
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "required": [
+        "status",
+        "events",
+        "bound_events",
+        "unbound_events",
+        "malformed_event_count",
+        "independent_authentication"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "NO_EXECUTION_EVIDENCE",
+            "EXECUTION_EVIDENCE_UNBOUND",
+            "EXECUTION_EVIDENCE_PARTIALLY_BOUND",
+            "EXECUTION_BOUND_TO_ACTION"
+          ]
+        },
+        "malformed_event_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "observed_execution": {
+      "type": "array"
+    },
+    "execution_status": {
+      "enum": [
+        "NO_EXECUTION_EVIDENCE",
+        "EXECUTION_EVIDENCE_UNBOUND",
+        "EXECUTION_EVIDENCE_PARTIALLY_BOUND",
+        "EXECUTION_BOUND_TO_ACTION"
+      ]
+    },
+    "evidence_boundary": {
+      "type": "object",
+      "required": [
+        "permit_is_execution",
+        "external_conformance_is_replay_verification",
+        "independent_crypto_verification_performed",
+        "claims"
+      ],
+      "properties": {
+        "permit_is_execution": {
+          "const": false
+        },
+        "external_conformance_is_replay_verification": {
+          "const": false
+        },
+        "independent_crypto_verification_performed": {
+          "const": false
+        }
+      }
+    }
   }
 }
