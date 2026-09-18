@@ -7,7 +7,7 @@
   "properties": {
     "schema": {"const": "agent-replay.share-bundle.v1"},
     "agent_replay_commit": {"type": ["string", "null"]},
-    "incident": {"$ref": "public-share-v1.schema.json"},
+    "incident": {"anyOf": [{"$ref": "public-share-v1.schema.json"}, {"$ref": "public-aps-share-v1.schema.json"}]},
     "radial_review": {"anyOf": [{"type": "null"}, {"$ref": "public-radial-review-v1.schema.json"}]},
     "sharing_policy": {
       "type": "object",
