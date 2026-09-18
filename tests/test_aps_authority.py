@@ -1,302 +1,230 @@
 from __future__ import annotations
 
+import copy
+import hashlib
+import json
+from pathlib import Path
+
+import jsonschema
 import pytest
 
-from agent_replay.aps import APS_FIXTURE_REVISION, reconstruct_aps_fixture
-
-
-ACTION_REF = "09a5166c3d75dbe76b76017e9d7197a67a1d3a2803ca86cf9aaea33f784537f5"
-
-
-def fixture(
-    name: str,
-    expected: str,
-    reasons: list[str] | None = None,
-    sub_results: list[str] | None = None,
-    *,
-    policy_verdict: str = "permit",
-) -> dict:
-    return {
-        "fixture": name,
-        "expected": expected,
-        "expectReasons": reasons or [],
-        "expected_sub_results": sub_results or [],
-        "envelope": {
-            "intent": {
-                "receipt_type": "aps:action-intent:v1",
-                "issuer": "did:aps:insight-agent-001",
-                "subject_agent": "did:aps:insight-agent-001",
-                "action_ref": ACTION_REF,
-                "delegation_ref": "sha256:leaf",
-                "receipt_id": "intent-receipt",
-                "signatures": [
-                    {
-                        "signer": "did:aps:insight-agent-001",
-                        "alg": "Ed25519",
-                        "value": "fixture-signature",
-                    }
-                ],
-            },
-            "decision": {
-                "receipt_type": "aps:policy-decision:v1",
-                "issuer": "did:aps:insight-gateway-001",
-                "subject_agent": "did:aps:insight-agent-001",
-                "action_ref": ACTION_REF,
-                "delegation_ref": "sha256:leaf",
-                "prev": "intent-receipt",
-                "result": {"verdict": policy_verdict, "reason": "fixture"},
-                "signatures": [
-                    {
-                        "signer": "did:aps:insight-gateway-001",
-                        "alg": "Ed25519",
-                        "value": "fixture-signature",
-                    }
-                ],
-            },
-            "delegations": [
-                {
-                    "delegation_id": "sha256:root",
-                    "parent_delegation_id": None,
-                    "issuer": "did:aps:insight-principal-001",
-                    "subject": "did:aps:insight-agent-001",
-                    "authority": {
-                        "time": {
-                            "not_before": "2026-08-25T00:00:00.000Z",
-                            "not_after": "2026-08-26T00:00:00.000Z",
-                        }
-                    },
-                },
-                {
-                    "delegation_id": "sha256:leaf",
-                    "parent_delegation_id": "sha256:root",
-                    "issuer": "did:aps:insight-agent-001",
-                    "subject": "did:aps:insight-agent-001",
-                    "authority": {
-                        "time": {
-                            "not_before": "2026-08-25T00:00:00.000Z",
-                            "not_after": "2026-08-25T01:00:00.000Z",
-                        }
-                    },
-                },
-            ],
-        },
-    }
-
-
-@pytest.mark.parametrize(
-    ("name", "expected", "reasons", "sub_results", "policy_verdict", "authority_status"),
-    [
-        ("pass", "allowed", [], [], "permit", "VALID"),
-        ("caution", "allowed", [], [], "permit", "VALID"),
-        ("danger", "halt", ["HALT_VERDICT_DANGER"], [], "permit", "NOT_ESTABLISHED"),
-        ("block", "halt", ["HALT_VERDICT_BLOCK"], [], "permit", "NOT_ESTABLISHED"),
-        (
-            "expired-oracle",
-            "halt",
-            ["HALT_ORACLE_EVIDENCE", "EXPIRED"],
-            [],
-            "permit",
-            "NOT_ESTABLISHED",
-        ),
-        (
-            "tampered-oracle",
-            "halt",
-            ["HALT_ORACLE_EVIDENCE", "UID_MISMATCH"],
-            ["oracle_input_rebuild_differs", "rebuild_digest_equals_declared"],
-            "permit",
-            "NOT_ESTABLISHED",
-        ),
-        (
-            "wrong-signer",
-            "halt",
-            ["HALT_ORACLE_EVIDENCE", "SIGNATURE_INVALID"],
-            ["attester_address_mismatch"],
-            "permit",
-            "NOT_ESTABLISHED",
-        ),
-        (
-            "authority-denied",
-            "halt",
-            ["HALT_AUTHORITY", "POLICY_DENIED"],
-            [],
-            "deny",
-            "DENIED",
-        ),
-        (
-            "sig-tampered",
-            "halt",
-            ["HALT_AUTHORITY", "SIGNATURE_INVALID"],
-            ["decision_signature_invalid"],
-            "permit",
-            "UNVERIFIED",
-        ),
-        (
-            "digest-mismatch",
-            "halt",
-            ["HALT_ORACLE_EVIDENCE", "EVIDENCE_DIGEST_MISMATCH"],
-            ["evidence_digest_mismatch"],
-            "permit",
-            "NOT_ESTABLISHED",
-        ),
-        (
-            "evidence-missing",
-            "halt",
-            ["HALT_ORACLE_EVIDENCE", "EVIDENCE_MISSING"],
-            ["evidence_ref_absent"],
-            "permit",
-            "NOT_ESTABLISHED",
-        ),
-        (
-            "delegation-expired",
-            "halt",
-            ["HALT_AUTHORITY", "AUTH_DELEGATION_EXPIRED"],
-            [],
-            "permit",
-            "EXPIRED",
-        ),
-        (
-            "delegation-revoked",
-            "halt",
-            ["HALT_AUTHORITY", "AUTH_DELEGATION_REVOKED"],
-            [],
-            "permit",
-            "REVOKED",
-        ),
-    ],
+from agent_replay import cli
+from agent_replay.aps import (
+    APS_FIXTURE_REPOSITORY,
+    APS_FIXTURE_REVISION,
+    reconstruct_aps_fixture,
 )
-def test_pinned_aps_case_matrix_preserves_authority_boundaries(
-    name,
-    expected,
-    reasons,
-    sub_results,
-    policy_verdict,
-    authority_status,
-):
+from agent_replay.share import build_share_bundle
+
+
+FIXTURE_DIR = Path("tests/fixtures/aps-oracle-safety-check-v1")
+SCHEMA_DIR = Path("schemas")
+
+EXPECTED = {
+    "pass": ("allowed", "ALLOWED_BY_FIXTURE", "permit"),
+    "caution": ("allowed", "ALLOWED_BY_FIXTURE", "permit"),
+    "danger": ("halt", "NOT_ESTABLISHED", "permit"),
+    "block": ("halt", "NOT_ESTABLISHED", "permit"),
+    "expired-oracle": ("halt", "NOT_ESTABLISHED", "permit"),
+    "tampered-oracle": ("halt", "NOT_ESTABLISHED", "permit"),
+    "wrong-signer": ("halt", "NOT_ESTABLISHED", "permit"),
+    "authority-denied": ("halt", "DENIED", "deny"),
+    "sig-tampered": ("halt", "UNVERIFIED", "permit"),
+    "digest-mismatch": ("halt", "NOT_ESTABLISHED", "permit"),
+    "evidence-missing": ("halt", "NOT_ESTABLISHED", "permit"),
+    "delegation-expired": ("halt", "EXPIRED", "permit"),
+    "delegation-revoked": ("halt", "REVOKED", "permit"),
+}
+
+
+def load_fixture(name: str) -> dict:
+    return json.loads((FIXTURE_DIR / f"{name}.json").read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("name", sorted(EXPECTED))
+def test_real_pinned_fixture_matrix_preserves_evidence_boundaries(name: str):
+    document = load_fixture(name)
+    raw = (FIXTURE_DIR / f"{name}.json").read_bytes()
+    outcome, authority_status, policy_verdict = EXPECTED[name]
+
     report = reconstruct_aps_fixture(
-        fixture(
-            name,
-            expected,
-            reasons,
-            sub_results,
-            policy_verdict=policy_verdict,
-        )
+        document,
+        input_sha256=hashlib.sha256(raw).hexdigest(),
     )
 
-    assert report["source"]["pinned_revision"] == APS_FIXTURE_REVISION
-    assert report["source"]["fixture"] == name
-    assert report["source"]["external_conformance_outcome"] == expected
+    assert report["schema"] == "agent-replay.aps-authority-reconstruction.v2"
+    assert report["adapter_validation"]["repository"] == APS_FIXTURE_REPOSITORY
+    assert report["adapter_validation"]["revision"] == APS_FIXTURE_REVISION
+    assert report["input_provenance"]["provenance_status"] == "UNKNOWN"
+
+    assert report["external_conformance"]["outcome"] == outcome
+    assert report["external_conformance"]["authority_status"] == authority_status
+    assert report["policy"]["verdict"] == policy_verdict
 
     assert report["identity"]["claimed_actor"] == "did:aps:insight-agent-001"
-    assert report["identity"]["intent_signer"] == "did:aps:insight-agent-001"
-    assert report["identity"]["intent_authentication"] == "CONSISTENT_WITH_FIXTURE"
-
+    assert report["identity"]["independent_authentication"] == "NOT_VERIFIED"
     assert report["authority"]["root_principal"] == "did:aps:insight-principal-001"
-    assert report["authority"]["status"] == authority_status
-    assert len(report["authority"]["delegation_path"]) == 2
+    assert report["authority"]["independent_cryptographic_verification"] == "NOT_VERIFIED"
 
-    assert report["policy"]["issuer"] == "did:aps:insight-gateway-001"
-    assert report["policy"]["verdict"] == policy_verdict
-    if name == "sig-tampered":
-        assert report["policy"]["authentication"] == "FAILED_BY_FIXTURE_ORACLE"
-    else:
-        assert report["policy"]["authentication"] == "CONSISTENT_WITH_FIXTURE"
+    assert report["binding"]["status"] == "COMPLETE"
+    assert all(report["binding"]["checks"].values())
 
-    assert report["action_binding"]["matched"] is True
-
-    # Critical Replay invariant: the fixture ends pre-dispatch. A permit is
-    # authority evidence, never execution evidence.
+    assert report["execution_status"] == "NO_EXECUTION_EVIDENCE"
     assert report["observed_execution"] == []
-    assert report["execution_status"] == "NOT_OBSERVED"
     assert report["evidence_boundary"]["permit_is_execution"] is False
+    assert report["evidence_boundary"]["external_conformance_is_replay_verification"] is False
 
 
-def test_permit_does_not_upgrade_actor_to_executor():
-    report = reconstruct_aps_fixture(fixture("pass", "allowed"))
+def test_adapter_validation_revision_is_not_input_provenance():
+    report = reconstruct_aps_fixture(load_fixture("pass"))
 
-    assert report["policy"]["verdict"] == "permit"
-    assert report["authority"]["status"] == "VALID"
-    assert report["execution_status"] == "NOT_OBSERVED"
-    assert any(
-        "dispatched or executed" in statement
-        for statement in report["evidence_boundary"]["cannot_establish"]
-    )
+    assert report["adapter_validation"]["revision"] == APS_FIXTURE_REVISION
+    assert report["input_provenance"]["revision"] is None
+    assert "not the provenance" in report["adapter_validation"]["claim"]
 
 
-def test_explicit_post_execution_evidence_is_required_before_execution_is_observed():
-    document = fixture("synthetic-post-execution", "allowed")
+def test_caller_supplied_input_provenance_is_kept_separate():
+    document = load_fixture("pass")
+    document["_agent_replay_source"] = {
+        "repository": "example/repo",
+        "revision": "abc123",
+        "path": "fixture.json",
+    }
+    report = reconstruct_aps_fixture(document)
+
+    assert report["input_provenance"] == {
+        "repository": "example/repo",
+        "revision": "abc123",
+        "path": "fixture.json",
+        "provenance_status": "CALLER_SUPPLIED",
+    }
+    assert report["adapter_validation"]["revision"] == APS_FIXTURE_REVISION
+
+
+def test_broken_receipt_and_delegation_binding_is_not_hidden():
+    document = load_fixture("pass")
+    document["envelope"]["decision"]["action_ref"] = "other-action"
+    document["envelope"]["decision"]["prev"] = "other-receipt"
+    document["envelope"]["decision"]["delegation_ref"] = "sha256:other"
+
+    report = reconstruct_aps_fixture(document)
+
+    assert report["binding"]["status"] == "PARTIAL"
+    assert report["binding"]["checks"]["action_ref"] is False
+    assert report["binding"]["checks"]["receipt_link"] is False
+    assert report["binding"]["checks"]["delegation_ref"] is False
+    assert report["binding"]["checks"]["delegation_chain"] is True
+
+
+def test_broken_delegation_chain_is_detected():
+    document = load_fixture("pass")
+    document["envelope"]["delegations"][1]["parent_delegation_id"] = "sha256:not-parent"
+
+    report = reconstruct_aps_fixture(document)
+
+    assert report["binding"]["checks"]["delegation_chain"] is False
+    assert report["binding"]["status"] == "PARTIAL"
+
+
+def test_random_execution_event_is_unbound_not_observed():
+    document = load_fixture("pass")
+    document["envelope"]["execution_events"] = [{"anything": "anything"}]
+
+    report = reconstruct_aps_fixture(document)
+
+    assert report["execution_status"] == "EXECUTION_EVIDENCE_UNBOUND"
+    assert report["observed_execution"] == []
+    assert len(report["execution"]["unbound_events"]) == 1
+
+
+def test_execution_requires_action_binding_and_actor_consistency():
+    document = load_fixture("pass")
+    action_ref = document["envelope"]["intent"]["action_ref"]
+    actor = document["envelope"]["intent"]["subject_agent"]
     document["envelope"]["execution_events"] = [
         {
             "event_id": "execution-1",
-            "actor": "did:aps:insight-agent-001",
-            "action_ref": ACTION_REF,
+            "actor": actor,
+            "action_ref": action_ref,
             "status": "completed",
         }
     ]
 
     report = reconstruct_aps_fixture(document)
 
-    assert report["execution_status"] == "OBSERVED"
+    assert report["execution_status"] == "EXECUTION_BOUND_TO_ACTION"
     assert len(report["observed_execution"]) == 1
+    assert report["execution"]["independent_authentication"] == "NOT_VERIFIED"
 
 
-def test_action_ref_mismatch_is_preserved_not_inferred_away():
-    document = fixture("binding-mismatch", "halt")
-    document["envelope"]["decision"]["action_ref"] = "different-action"
+def test_wrong_actor_execution_is_unbound():
+    document = load_fixture("pass")
+    document["envelope"]["execution_events"] = [
+        {
+            "event_id": "execution-1",
+            "actor": "did:aps:someone-else",
+            "action_ref": document["envelope"]["intent"]["action_ref"],
+        }
+    ]
 
     report = reconstruct_aps_fixture(document)
 
-    assert report["action_binding"]["matched"] is False
+    assert report["execution_status"] == "EXECUTION_EVIDENCE_UNBOUND"
+    assert report["observed_execution"] == []
 
 
-def test_missing_envelope_fails_closed():
-    with pytest.raises(ValueError, match="envelope"):
-        reconstruct_aps_fixture({"fixture": "broken"})
+def test_aps_output_conforms_to_public_schema():
+    report = reconstruct_aps_fixture(load_fixture("pass"))
+    schema = json.loads(
+        (SCHEMA_DIR / "aps-authority-reconstruction-v2.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    jsonschema.Draft202012Validator(schema).validate(report)
 
 
+def test_aps_safe_share_conforms_and_omits_raw_evidence():
+    report = reconstruct_aps_fixture(load_fixture("pass"), input_sha256="a" * 64)
+    bundle = build_share_bundle(report)
+    public = bundle["incident"]
+    schema = json.loads(
+        (SCHEMA_DIR / "public-aps-share-v1.schema.json").read_text(encoding="utf-8")
+    )
 
-def test_cli_reconstructs_aps_json_in_plain_language(tmp_path, monkeypatch, capsys):
-    import json
-    import sys
+    jsonschema.Draft202012Validator(schema).validate(public)
+    assert public["schema"] == "agent-replay.public-aps-share.v1"
+    assert public["execution"]["bound_event_count"] == 0
+    assert "delegation_path" not in public["authority"]
+    assert "events" not in public["execution"]
 
-    from agent_replay import cli
 
-    source = tmp_path / "aps.json"
-    source.write_text(json.dumps(fixture("pass", "allowed")), encoding="utf-8")
+def test_aps_share_rejects_include_values():
+    report = reconstruct_aps_fixture(load_fixture("pass"))
+    with pytest.raises(ValueError, match="not applicable"):
+        build_share_bundle(report, include_values=True)
+
+
+def test_cli_reconstructs_real_aps_fixture(tmp_path, monkeypatch, capsys):
+    output = tmp_path / "incident.json"
     monkeypatch.setattr(
-        sys,
-        "argv",
-        ["agent-replay", "reconstruct", str(source), "--format", "aps"],
+        "sys.argv",
+        [
+            "agent-replay",
+            "reconstruct",
+            str(FIXTURE_DIR / "pass.json"),
+            "--format",
+            "aps",
+            "--json",
+            "-o",
+            str(output),
+        ],
     )
 
     cli.main()
 
-    output = capsys.readouterr().out
-    assert "AGENT REPLAY APS AUTHORITY RECONSTRUCTION" in output
-    assert "Claimed actor: did:aps:insight-agent-001" in output
-    assert "Authority status: VALID" in output
-    assert "Status: NOT_OBSERVED" in output
-    assert "Permit is execution: false" in output
-
-
-def test_cli_auto_detects_aps_envelope(tmp_path):
-    import json
-    from argparse import Namespace
-    from agent_replay import cli
-
-    source = tmp_path / "aps.json"
-    source.write_text(json.dumps(fixture("pass", "allowed")), encoding="utf-8")
-    args = Namespace(
-        input=str(source),
-        format="auto",
-        trace_id=None,
-        max_bytes=1024 * 1024,
-        max_events=100,
-        max_parents=10,
-        max_depth=10,
-    )
-
-    report = cli._reconstruct_input(args)
-
-    assert report["input_format"] == "aps-oracle-safety-check-v1"
-    assert report["execution_status"] == "NOT_OBSERVED"
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert report["schema"] == "agent-replay.aps-authority-reconstruction.v2"
+    assert report["binding"]["status"] == "COMPLETE"
+    assert report["execution_status"] == "NO_EXECUTION_EVIDENCE"
     assert len(report["input_sha256"]) == 64
+    assert capsys.readouterr().err == ""
