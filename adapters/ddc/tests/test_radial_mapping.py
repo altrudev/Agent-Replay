@@ -2,6 +2,10 @@ import os
 
 import pytest
 
+import json
+from pathlib import Path
+
+from agent_replay.aps import reconstruct_aps_fixture
 from agent_replay.reconstruct import reconstruct
 from agent_replay_ddc.radial_mapping import incident_to_radial_spec
 from agent_replay_ddc.radial_runner import analyze_incident
@@ -204,6 +208,32 @@ def test_wrong_incident_schema_fails_closed():
     try:
         incident_to_radial_spec({"schema": "wrong"})
     except ValueError as exc:
-        assert "agent-replay.incident.v2" in str(exc)
+        assert "does not support schema" in str(exc)
     else:
         raise AssertionError("wrong schema must fail closed")
+
+
+
+def test_aps_reconstruction_maps_to_explicit_evidence_graph():
+    fixture = json.loads(
+        Path("tests/fixtures/aps-oracle-safety-check-v1/pass.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    report = reconstruct_aps_fixture(fixture)
+    graph = incident_to_radial_spec(report)
+
+    assert [node["id"] for node in graph["nodes"]] == [
+        "aps:intent",
+        "aps:delegation",
+        "aps:policy",
+        "aps:execution",
+    ]
+    assert len(graph["edges"]) == 3
+    execution = next(node for node in graph["nodes"] if node["id"] == "aps:execution")
+    assert execution["observable"] is False
+    policy_execution = next(
+        edge for edge in graph["edges"]
+        if edge["src"] == "aps:policy" and edge["dst"] == "aps:execution"
+    )
+    assert policy_execution["context_bound"] is False
