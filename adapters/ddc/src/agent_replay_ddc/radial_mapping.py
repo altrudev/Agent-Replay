@@ -75,9 +75,111 @@ def _edge_meta(radial: dict[str, Any], src: str) -> dict[str, Any]:
     return merged
 
 
+def _aps_to_radial_spec(report: dict[str, Any]) -> dict[str, Any]:
+    authority = report.get("authority") if isinstance(report.get("authority"), dict) else {}
+    identity = report.get("identity") if isinstance(report.get("identity"), dict) else {}
+    policy = report.get("policy") if isinstance(report.get("policy"), dict) else {}
+    binding = report.get("binding") if isinstance(report.get("binding"), dict) else {}
+    execution = report.get("execution") if isinstance(report.get("execution"), dict) else {}
+
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
+
+    def node(node_id: str, dimensions: set[str], *, authority_value: str = "", observable: bool = True) -> None:
+        nodes.append({
+            "id": node_id,
+            "dimensions": sorted(dimensions),
+            "mutable": False,
+            "authority": authority_value,
+            "representation": "agent-replay-aps-authority-v1",
+            "consequence": 0.0,
+            "observable": observable,
+            "reversible": True,
+            "provenance": {
+                "dimensions": {dim: "EXPLICIT" for dim in dimensions},
+                "mutable": "DEFAULT",
+                "authority": "EXPLICIT" if authority_value else "DEFAULT",
+                "representation": "EXPLICIT",
+                "consequence": "DEFAULT",
+                "observable": "EXPLICIT",
+                "reversible": "DEFAULT",
+            },
+        })
+
+    root = authority.get("root_principal")
+    if root:
+        node("aps:principal", {"identity", "authority", "provenance"}, authority_value=str(root))
+
+    delegation_path = authority.get("delegation_path") or []
+    previous = "aps:principal" if root else None
+    for index, link in enumerate(delegation_path, 1):
+        node_id = f"aps:delegation:{index}"
+        node(node_id, {"authority", "delegation", "time", "provenance"}, authority_value=str(link.get("issuer") or ""))
+        if previous:
+            edges.append({
+                "src": previous, "dst": node_id, "relation": "delegates",
+                "time_gap": 0.0, "independently_mutable": False,
+                "shared_atomic_boundary": False, "freshness_bound": True,
+                "context_bound": True,
+                "provenance": {
+                    "relation": "EXPLICIT", "time_gap": "DEFAULT",
+                    "independently_mutable": "DEFAULT", "shared_atomic_boundary": "DEFAULT",
+                    "freshness_bound": "EXPLICIT", "context_bound": "EXPLICIT",
+                },
+            })
+        previous = node_id
+
+    node("aps:intent", {"identity", "action", "authority", "representation", "provenance"}, authority_value=str(identity.get("claimed_actor") or ""))
+    if previous and (binding.get("delegation_ref") or {}).get("matched"):
+        edges.append({
+            "src": previous, "dst": "aps:intent", "relation": "authorizes_claim",
+            "time_gap": 0.0, "independently_mutable": False,
+            "shared_atomic_boundary": False, "freshness_bound": True,
+            "context_bound": True,
+            "provenance": {
+                "relation": "EXPLICIT", "time_gap": "DEFAULT",
+                "independently_mutable": "DEFAULT", "shared_atomic_boundary": "DEFAULT",
+                "freshness_bound": "EXPLICIT", "context_bound": "EXPLICIT",
+            },
+        })
+
+    node("aps:policy", {"policy", "authority", "decision", "representation", "provenance"}, authority_value=str(policy.get("issuer") or ""))
+    if (binding.get("receipt_link") or {}).get("matched"):
+        edges.append({
+            "src": "aps:intent", "dst": "aps:policy", "relation": "receipt_precedes",
+            "time_gap": 0.0, "independently_mutable": True,
+            "shared_atomic_boundary": False, "freshness_bound": True,
+            "context_bound": True,
+            "provenance": {
+                "relation": "EXPLICIT", "time_gap": "DEFAULT",
+                "independently_mutable": "INFERRED", "shared_atomic_boundary": "DEFAULT",
+                "freshness_bound": "EXPLICIT", "context_bound": "EXPLICIT",
+            },
+        })
+
+    for index, event in enumerate(execution.get("action_bound_events") or [], 1):
+        node_id = f"aps:execution:{index}"
+        node(node_id, {"execution", "action", "result", "consequence", "provenance"}, authority_value=str(event.get("actor") or event.get("executor") or ""))
+        edges.append({
+            "src": "aps:policy", "dst": node_id, "relation": "precedes_execution_evidence",
+            "time_gap": 0.0, "independently_mutable": True,
+            "shared_atomic_boundary": False, "freshness_bound": False,
+            "context_bound": True,
+            "provenance": {
+                "relation": "EXPLICIT", "time_gap": "DEFAULT",
+                "independently_mutable": "INFERRED", "shared_atomic_boundary": "DEFAULT",
+                "freshness_bound": "DEFAULT", "context_bound": "EXPLICIT",
+            },
+        })
+
+    return {"nodes": nodes, "edges": edges}
+
+
 def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
+    if incident.get("schema") == "agent-replay.aps-authority-reconstruction.v1":
+        return _aps_to_radial_spec(incident)
     if incident.get("schema") != "agent-replay.incident.v2":
-        raise ValueError("DDC Radial adapter requires agent-replay.incident.v2")
+        raise ValueError("DDC Radial adapter requires an Agent Replay incident or APS authority reconstruction")
     timeline = incident.get("timeline")
     if not isinstance(timeline, list):
         raise ValueError("incident timeline is required")
