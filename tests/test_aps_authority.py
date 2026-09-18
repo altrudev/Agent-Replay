@@ -243,3 +243,23 @@ def test_cli_reconstructs_real_aps_fixture(tmp_path, monkeypatch, capsys):
     assert report["execution_status"] == "NO_EXECUTION_EVIDENCE"
     assert len(report["input_sha256"]) == 64
     assert capsys.readouterr().err == ""
+
+
+
+def test_malformed_execution_entries_fail_closed_as_unbound_evidence():
+    document = load_fixture("pass")
+    document["envelope"]["execution_events"] = ["not-an-object"]
+
+    report = reconstruct_aps_fixture(document)
+
+    assert report["execution_status"] == "EXECUTION_EVIDENCE_UNBOUND"
+    assert report["observed_execution"] == []
+    assert report["execution"]["malformed_event_count"] == 1
+
+
+def test_malformed_delegation_entries_are_rejected():
+    document = load_fixture("pass")
+    document["envelope"]["delegations"].append("not-an-object")
+
+    with pytest.raises(ValueError, match="delegations must contain only objects"):
+        reconstruct_aps_fixture(document)
