@@ -106,8 +106,8 @@ def _reconstruct_input(args) -> dict:
         document = json.loads(raw.decode("utf-8"))
         if not isinstance(document, dict):
             raise ValueError("APS input must be a JSON object")
-        incident = reconstruct_aps_fixture(document)
-        incident["input_sha256"] = hashlib.sha256(raw).hexdigest()
+        input_sha256 = hashlib.sha256(raw).hexdigest()
+        incident = reconstruct_aps_fixture(document, input_sha256=input_sha256)
         incident["input_format"] = "aps-oracle-safety-check-v1"
         return incident
 
@@ -203,7 +203,7 @@ def _run(args, parser: argparse.ArgumentParser) -> None:
             parser.error("--trace-record and --trace-key must be supplied together")
         incident = _reconstruct_input(args)
         if args.trace_record:
-            if incident.get("schema") == "agent-replay.aps-authority-reconstruction.v1":
+            if str(incident.get("schema", "")).startswith("agent-replay.aps-authority-reconstruction."):
                 raise ValueError("TRACE supplementary evidence is not supported for APS reconstruction")
             _attach_trace_evidence(incident, args.trace_record, args.trace_key)
         _emit(incident, args.json, args.output)
