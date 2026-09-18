@@ -275,3 +275,17 @@ Every new feature, integration, renderer, constraint operator, and export format
 If yes, the change MUST be rejected or redesigned unless stronger evidence is explicitly required and validated.
 
 This baseline is the design constitution for the next Agent Replay development line. Implementation details may evolve; these evidentiary principles do not change casually.
+
+## Authenticated execution-boundary evidence
+
+Agent Replay may optionally verify three distinct execution-boundary claims:
+
+1. **Expected-state provenance** — a caller-trusted Ed25519 signer binds an expected state to a policy identity, authority version, event, action, scope, and validity interval.
+2. **Revocation delivery** — a caller-trusted execution-boundary signer acknowledges a specific, hash-bound revocation event before execution.
+3. **Execution-time evaluation** — a caller-trusted boundary signer proves that it evaluated the delivered authority state before the execution event and binds that evaluation to the event's observed decision state.
+
+These stages are intentionally independent. A valid delivery receipt MUST NOT be interpreted as proof that the boundary evaluated the received state. A valid evaluation MUST NOT become an enforcement claim unless the expected policy is independently authenticated and the evaluation is bound to the verified delivery evidence.
+
+Agent Replay reports enforcement consistency only when policy provenance, delivery, and execution-time evaluation are all verified. Otherwise it preserves the unresolved boundary explicitly.
+
+Cryptographic validity is not organizational authority. Trust in a signer is supplied by the caller; Agent Replay does not infer legal authority, organizational entitlement, or real-world identity continuity from possession of a valid signing key.
