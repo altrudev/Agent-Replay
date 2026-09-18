@@ -112,7 +112,15 @@ def _reconstruct_input(args) -> dict:
         document = json.loads(raw.decode("utf-8"))
         if not isinstance(document, dict):
             raise ValueError("APS input must be a JSON object")
-        incident = reconstruct_aps_fixture(document, input_sha256=hashlib.sha256(raw).hexdigest())
+        incident = reconstruct_aps_fixture(
+            document,
+            input_sha256=hashlib.sha256(raw).hexdigest(),
+            input_provenance={
+                "repository": getattr(args, "source_repository", None),
+                "revision": getattr(args, "source_revision", None),
+                "path": getattr(args, "source_path", None),
+            },
+        )
         incident["input_sha256"] = hashlib.sha256(raw).hexdigest()
         incident["input_format"] = "aps-oracle-safety-check-v1"
         return incident
@@ -245,6 +253,9 @@ def main():
     reconstruct_parser.add_argument("-o", "--output", help="output path; default stdout")
     reconstruct_parser.add_argument("--trace-record")
     reconstruct_parser.add_argument("--trace-key")
+    reconstruct_parser.add_argument("--source-repository", help="APS input source repository; not inferred")
+    reconstruct_parser.add_argument("--source-revision", help="APS input source revision; not inferred")
+    reconstruct_parser.add_argument("--source-path", help="APS input source path; not inferred")
     _add_limits(reconstruct_parser)
 
     reproduce_parser = sub.add_parser("reproduce", help="Re-run evidence and compare deterministic reconstruction outputs")
