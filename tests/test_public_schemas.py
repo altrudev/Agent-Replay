@@ -5,8 +5,9 @@ from pathlib import Path
 
 import jsonschema
 
+from agent_replay.aps import reconstruct_aps_fixture
 from agent_replay.reconstruct import reconstruct
-from agent_replay.share import build_share_bundle, sanitize_incident, sanitize_radial
+from agent_replay.share import build_share_bundle, sanitize_aps_reconstruction, sanitize_incident, sanitize_radial
 
 
 def _schema(name: str) -> dict:
@@ -16,8 +17,10 @@ def _schema(name: str) -> dict:
 def test_all_public_schemas_are_valid_json_schema():
     for name in (
         "public-share-v1.schema.json",
+        "public-aps-share-v1.schema.json",
         "public-radial-review-v1.schema.json",
         "share-bundle-v1.schema.json",
+        "aps-authority-reconstruction-v2.schema.json",
     ):
         jsonschema.Draft202012Validator.check_schema(_schema(name))
 
@@ -51,3 +54,16 @@ def test_share_bundle_has_expected_contract_identity():
     assert bundle["schema"] == "agent-replay.share-bundle.v1"
     assert bundle["incident"]["schema"] == "agent-replay.public-share.v1"
     assert len(bundle["bundle_sha256"]) == 64
+
+
+
+def test_sanitized_aps_conforms_to_public_schema():
+    fixture = json.loads(
+        Path("tests/fixtures/aps-oracle-safety-check-v1/pass.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    public = sanitize_aps_reconstruction(reconstruct_aps_fixture(fixture))
+    jsonschema.Draft202012Validator(
+        _schema("public-aps-share-v1.schema.json")
+    ).validate(public)
