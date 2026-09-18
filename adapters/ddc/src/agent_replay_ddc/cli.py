@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 from agent_replay.aps import reconstruct_aps_fixture
+from agent_replay.normalize import DEFAULT_MAX_BYTES
 from agent_replay.otel import write_canonical_jsonl
 from agent_replay.reconstruct import reconstruct
 from agent_replay.report import render_text
@@ -15,7 +16,19 @@ from .render import render_radial
 
 
 def _sha256(path: str | Path) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _bounded_source(path: str | Path) -> Path:
+    source = Path(path)
+    size = source.stat().st_size
+    if size > DEFAULT_MAX_BYTES:
+        raise ValueError(f"input size {size} exceeds max_bytes={DEFAULT_MAX_BYTES}")
+    return source
 
 
 def _reconstruct(
@@ -26,7 +39,7 @@ def _reconstruct(
     if input_format == "aps":
         if trace_id:
             raise ValueError("trace_id is not valid for APS input")
-        raw = Path(input_path).read_bytes()
+        raw = _bounded_source(input_path).read_bytes()
         document = json.loads(raw.decode("utf-8"))
         if not isinstance(document, dict):
             raise ValueError("APS input must be a JSON object")
@@ -39,6 +52,7 @@ def _reconstruct(
         incident["input_format"] = "canonical-jsonl"
         return incident
 
+    _bounded_source(input_path)
     original_sha256 = _sha256(input_path)
     with tempfile.TemporaryDirectory(prefix="agent-replay-ddc-") as tmp:
         canonical = Path(tmp) / "canonical.jsonl"
