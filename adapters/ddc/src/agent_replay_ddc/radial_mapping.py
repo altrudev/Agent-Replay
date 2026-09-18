@@ -179,7 +179,7 @@ def incident_to_radial_spec(incident: dict[str, Any]) -> dict[str, Any]:
     if incident.get("schema") == "agent-replay.aps-authority-reconstruction.v1":
         return _aps_to_radial_spec(incident)
     if incident.get("schema") != "agent-replay.incident.v2":
-        raise ValueError("DDC Radial adapter requires an Agent Replay incident or APS authority reconstruction")
+        raise ValueError("DDC Radial adapter requires agent-replay.incident.v2 or agent-replay.aps-authority-reconstruction.v1")
     timeline = incident.get("timeline")
     if not isinstance(timeline, list):
         raise ValueError("incident timeline is required")
