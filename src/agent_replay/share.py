@@ -148,23 +148,31 @@ def _safe_boundary(
             continue
         policy = item.get("policy") if isinstance(item.get("policy"), dict) else {}
         receipt = item.get("revocation_receipt") if isinstance(item.get("revocation_receipt"), dict) else {}
+        evaluation = item.get("execution_evaluation") if isinstance(item.get("execution_evaluation"), dict) else {}
+        enforcement = item.get("enforcement") if isinstance(item.get("enforcement"), dict) else {}
         events.append({
             "event": event_aliases.get(str(item.get("event_id", "")), "event-unknown"),
             "kind": kind_aliases.get(str(item.get("kind", "")), "kind-unknown"),
             "policy_status": policy.get("status"),
             "revocation_receipt_status": receipt.get("status"),
+            "execution_evaluation_status": evaluation.get("status"),
+            "enforcement_status": enforcement.get("status"),
         })
     return {
         "schema": boundary.get("schema"),
         "trust_store_configured": bool(boundary.get("trust_store_configured")),
         "authenticated_expectation_events": boundary.get("authenticated_expectation_events", 0),
         "verified_revocation_receipts": boundary.get("verified_revocation_receipts", 0),
+        "verified_execution_evaluations": boundary.get("verified_execution_evaluations", 0),
+        "enforcement_consistent_events": boundary.get("enforcement_consistent_events", 0),
+        "enforcement_diverged_events": boundary.get("enforcement_diverged_events", 0),
         "replay_scope": boundary.get("replay_scope"),
         "events": events,
         "proof_material_included": False,
         "scope": (
-            "Verification status is exported, but signed payloads, signatures, key identifiers, "
-            "and trusted public keys are omitted by default and cannot be re-verified from this bundle alone."
+            "Verification and enforcement status are exported, but signed payloads, signatures, "
+            "key identifiers, and trusted public keys are omitted by default and cannot be re-verified "
+            "from this bundle alone."
         ),
     }
 
