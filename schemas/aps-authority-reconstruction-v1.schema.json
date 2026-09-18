@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-replay.dev/schemas/aps-authority-reconstruction-v1.schema.json",
+  "title": "Agent Replay APS Authority Reconstruction v1",
+  "type": "object",
+  "required": ["schema","source","identity","authority","policy","binding","execution","evidence_boundary"],
+  "properties": {
+    "schema": {"const": "agent-replay.aps-authority-reconstruction.v1"},
+    "input_sha256": {"type":["string","null"],"pattern":"^[a-f0-9]{64}$"},
+    "input_format": {"type":"string"},
+    "source": {
+      "type":"object",
+      "required":["adapter_tested_against","input_provenance","external_conformance"],
+      "properties":{
+        "system":{"const":"Agent Passport System"},
+        "fixture":{},
+        "adapter_tested_against":{
+          "type":"object",
+          "required":["repository","revision","fixture_family"],
+          "properties":{
+            "repository":{"type":"string"},
+            "revision":{"type":"string","pattern":"^[a-f0-9]{40}$"},
+            "fixture_family":{"type":"string"}
+          }
+        },
+        "input_provenance":{
+          "type":"object",
+          "required":["repository","revision","path","sha256","provenance_status"],
+          "properties":{
+            "repository":{"type":["string","null"]},
+            "revision":{"type":["string","null"]},
+            "path":{"type":["string","null"]},
+            "sha256":{"type":["string","null"],"pattern":"^[a-f0-9]{64}$"},
+            "provenance_status":{"enum":["UNKNOWN","SUPPLIED"]}
+          }
+        },
+        "external_conformance":{
+          "type":"object",
+          "required":["outcome","reasons","sub_results","authority_disposition","scope"]
+        }
+      }
+    },
+    "identity":{"type":"object","required":["claimed_actor","intent_issuer","intent_signer","intent_authentication"]},
+    "authority":{
+      "type":"object",
+      "required":["root_principal","leaf_delegation_id","delegation_path","chain_continuity","evidence_status","external_conformance_disposition","replay_verification"],
+      "properties":{
+        "delegation_path":{"type":"array"},
+        "chain_continuity":{"type":"boolean"},
+        "evidence_status":{"enum":["CHAIN_BOUND","CHAIN_PRESENT_UNBOUND","MISSING"]},
+        "replay_verification":{"const":"NOT_INDEPENDENTLY_CRYPTOGRAPHICALLY_VERIFIED"}
+      }
+    },
+    "policy":{"type":"object","required":["issuer","signer","authentication","verdict","reason"]},
+    "binding":{
+      "type":"object",
+      "required":["status","action_ref","receipt_link","delegation_ref","delegation_chain_continuity"],
+      "properties":{
+        "status":{"enum":["COMPLETE","PARTIAL","BROKEN"]},
+        "delegation_chain_continuity":{"type":"boolean"},
+        "action_ref":{"$ref":"#/$defs/bindingCheck"},
+        "receipt_link":{"$ref":"#/$defs/bindingCheck"},
+        "delegation_ref":{"$ref":"#/$defs/bindingCheck"}
+      }
+    },
+    "execution":{
+      "type":"object",
+      "required":["status","evidence_count","action_bound_count","actor_bound_count","action_bound_events","actor_bound_events","cryptographic_authentication"],
+      "properties":{
+        "status":{"enum":["NOT_OBSERVED","EVIDENCE_PRESENT_UNBOUND","ACTION_BOUND","ACTOR_BOUND"]},
+        "evidence_count":{"type":"integer","minimum":0},
+        "action_bound_count":{"type":"integer","minimum":0},
+        "actor_bound_count":{"type":"integer","minimum":0},
+        "action_bound_events":{"type":"array"},
+        "actor_bound_events":{"type":"array"},
+        "cryptographic_authentication":{"const":"NOT_VERIFIED"}
+      }
+    },
+    "evidence_boundary":{
+      "type":"object",
+      "required":["can_establish","cannot_establish","permit_is_execution","monotonic_evidence_rule"],
+      "properties":{"permit_is_execution":{"const":false}}
+    }
+  },
+  "$defs":{
+    "bindingCheck":{
+      "type":"object",
+      "required":["matched"],
+      "properties":{"matched":{"type":"boolean"}}
+    }
+  }
+}
