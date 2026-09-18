@@ -56,7 +56,63 @@ def _append_evidence_gaps(lines: list[str], report: dict[str, Any]) -> None:
             lines.append(f"  effect: {gap['effect']}")
 
 
+
+def _render_aps_text(report: dict[str, Any]) -> str:
+    source = report.get("source", {})
+    identity = report.get("identity", {})
+    authority = report.get("authority", {})
+    policy = report.get("policy", {})
+    binding = report.get("action_binding", {})
+    boundary = report.get("evidence_boundary", {})
+    lines = [
+        "AGENT REPLAY APS AUTHORITY RECONSTRUCTION",
+        f"Fixture: {source.get('fixture')}",
+        f"Pinned APS revision: {source.get('pinned_revision')}",
+        f"APS conformance outcome: {source.get('external_conformance_outcome')}",
+        "",
+        "IDENTITY",
+        f"Claimed actor: {identity.get('claimed_actor')}",
+        f"Intent signer: {identity.get('intent_signer')}",
+        f"Intent authentication: {identity.get('intent_authentication')}",
+        "",
+        "AUTHORITY",
+        f"Root principal: {authority.get('root_principal')}",
+        f"Authority status: {authority.get('status')}",
+    ]
+    for index, link in enumerate(authority.get("delegation_path", []), 1):
+        lines.append(
+            f"- link {index}: {link.get('issuer')} -> {link.get('subject')} "
+            f"({link.get('delegation_id')})"
+        )
+    lines.extend([
+        "",
+        "POLICY",
+        f"Issuer: {policy.get('issuer')}",
+        f"Signer: {policy.get('signer')}",
+        f"Authentication: {policy.get('authentication')}",
+        f"Verdict: {policy.get('verdict')}",
+        "",
+        "ACTION BINDING",
+        f"Intent action_ref: {binding.get('intent_action_ref')}",
+        f"Decision action_ref: {binding.get('decision_action_ref')}",
+        f"Matched: {_fmt(binding.get('matched'))}",
+        "",
+        "OBSERVED EXECUTION",
+        f"Status: {report.get('execution_status')}",
+        f"Events: {len(report.get('observed_execution', []))}",
+        f"Permit is execution: {_fmt(boundary.get('permit_is_execution'))}",
+        "",
+        "EVIDENCE BOUNDARY",
+    ])
+    for statement in boundary.get("can_establish", []):
+        lines.append(f"- CAN: {statement}")
+    for statement in boundary.get("cannot_establish", []):
+        lines.append(f"- CANNOT: {statement}")
+    return "\n".join(lines)
+
 def render_text(report: dict[str, Any]) -> str:
+    if report.get("schema") == "agent-replay.aps-authority-reconstruction.v1":
+        return _render_aps_text(report)
     lines: list[str] = []
     first = report.get("first_provable_divergence")
     coverage = report["expectation_coverage"]
