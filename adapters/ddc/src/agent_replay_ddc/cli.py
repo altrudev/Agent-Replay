@@ -22,6 +22,9 @@ def _reconstruct(
     input_path: str,
     input_format: str,
     trace_id: str | None = None,
+    source_repository: str | None = None,
+    source_revision: str | None = None,
+    source_path: str | None = None,
 ):
     if input_format == "aps":
         if trace_id:
@@ -30,7 +33,15 @@ def _reconstruct(
         document = json.loads(raw.decode("utf-8"))
         if not isinstance(document, dict):
             raise ValueError("APS input must be a JSON object")
-        incident = reconstruct_aps_fixture(document, input_sha256=hashlib.sha256(raw).hexdigest())
+        incident = reconstruct_aps_fixture(
+            document,
+            input_sha256=hashlib.sha256(raw).hexdigest(),
+            input_provenance={
+                "repository": source_repository,
+                "revision": source_revision,
+                "path": source_path,
+            },
+        )
         incident["input_sha256"] = hashlib.sha256(raw).hexdigest()
         incident["input_format"] = "aps-oracle-safety-check-v1"
         return incident
@@ -70,6 +81,9 @@ def _add_input_args(target):
         "--trace-id",
         help="trace ID to select when an OTLP document contains multiple traces",
     )
+    target.add_argument("--source-repository", help="APS input source repository; not inferred")
+    target.add_argument("--source-revision", help="APS input source revision; not inferred")
+    target.add_argument("--source-path", help="APS input source path; not inferred")
 
 
 def main():
@@ -102,7 +116,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        incident = _reconstruct(args.input, args.format, args.trace_id)
+        incident = _reconstruct(args.input, args.format, args.trace_id, args.source_repository, args.source_revision, args.source_path)
     except ValueError as exc:
         parser.error(str(exc))
 
