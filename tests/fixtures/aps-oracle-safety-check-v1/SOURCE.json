@@ -1,0 +1,20 @@
+{
+  "repository": "Agent-Authority-Conformance/aps-conformance-suite",
+  "revision": "6e8b05b202d727ef18e84e100fc31db11f36529f",
+  "fixture_family": "fixtures/cross-stack/oracle-safety-check/oracle-safety-check-v1",
+  "git_blob_sha1": {
+    "pass.json": "bf7d50ace30b748270960f8463875aa390efe705",
+    "caution.json": "d9943d3fb9b71cf33aa10aae601682f1d2d32607",
+    "danger.json": "2bf4279ae88ebf4b3f5503fd4330a1ed5ee55275",
+    "block.json": "01fb92b0d93d45a735be9db5af243829d7ff7f06",
+    "expired-oracle.json": "383829cb660ad403bb5ee8c4a38a7adf2b381780",
+    "tampered-oracle.json": "e0fcb640bf8a94544505242c27111f212a62904e",
+    "wrong-signer.json": "ac781b9f2265a889d3ac6e2f4d95f52700d5a0c2",
+    "authority-denied.json": "53e4d0cae5311702ea05a241a104e5ebd0dd2fbc",
+    "sig-tampered.json": "87b36236ee20bbe6acf0d02577b795f51c2ff43c",
+    "digest-mismatch.json": "ba11587c4eec5f62355fe61369131d7f2b295fb8",
+    "evidence-missing.json": "7eb36ff271b7a81f2ac1403666d2da7a372b8963",
+    "delegation-expired.json": "84d9d1040e503f1adb7dc1647f97a0b170256ed9",
+    "delegation-revoked.json": "7b4fe9043a1d7a3b1c25bcf703db86bc98c599f3"
+  }
+}
