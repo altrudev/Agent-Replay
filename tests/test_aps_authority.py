@@ -21,19 +21,19 @@ FIXTURE_DIR = Path("tests/fixtures/aps-oracle-safety-check-v1")
 SCHEMA_DIR = Path("schemas")
 
 EXPECTED = {
-    "pass": ("allowed", "ALLOWED_BY_FIXTURE", "permit"),
-    "caution": ("allowed", "ALLOWED_BY_FIXTURE", "permit"),
+    "pass": ("allowed", "SUPPLIED_ALLOWED", "permit"),
+    "caution": ("allowed", "SUPPLIED_ALLOWED", "permit"),
     "danger": ("halt", "NOT_ESTABLISHED", "permit"),
     "block": ("halt", "NOT_ESTABLISHED", "permit"),
     "expired-oracle": ("halt", "NOT_ESTABLISHED", "permit"),
     "tampered-oracle": ("halt", "NOT_ESTABLISHED", "permit"),
     "wrong-signer": ("halt", "NOT_ESTABLISHED", "permit"),
-    "authority-denied": ("halt", "DENIED", "deny"),
-    "sig-tampered": ("halt", "UNVERIFIED", "permit"),
+    "authority-denied": ("halt", "SUPPLIED_DENIED", "deny"),
+    "sig-tampered": ("halt", "SUPPLIED_SIGNATURE_INVALID", "permit"),
     "digest-mismatch": ("halt", "NOT_ESTABLISHED", "permit"),
     "evidence-missing": ("halt", "NOT_ESTABLISHED", "permit"),
-    "delegation-expired": ("halt", "EXPIRED", "permit"),
-    "delegation-revoked": ("halt", "REVOKED", "permit"),
+    "delegation-expired": ("halt", "SUPPLIED_EXPIRED", "permit"),
+    "delegation-revoked": ("halt", "SUPPLIED_REVOKED", "permit"),
 }
 
 
@@ -263,3 +263,10 @@ def test_malformed_delegation_entries_are_rejected():
 
     with pytest.raises(ValueError, match="delegations must contain only objects"):
         reconstruct_aps_fixture(document)
+
+
+
+def test_signature_failure_language_does_not_claim_independent_oracle_verification():
+    report = reconstruct_aps_fixture(load_fixture("sig-tampered"))
+    assert report["policy"]["signature_assessment"] == "FAILED_BY_SUPPLIED_CONFORMANCE"
+    assert report["policy"]["independent_authentication"] == "NOT_VERIFIED"
