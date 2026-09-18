@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 
+APS_FIXTURE_REPOSITORY = "Agent-Authority-Conformance/aps-conformance-suite"
 APS_FIXTURE_REVISION = "6e8b05b202d727ef18e84e100fc31db11f36529f"
+APS_FIXTURE_FAMILY = "fixtures/cross-stack/oracle-safety-check/oracle-safety-check-v1"
 
 
 def _first_signature(receipt: dict[str, Any]) -> dict[str, Any]:
@@ -28,21 +30,15 @@ def _delegation_path(delegations: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
-def _authority_status(document: dict[str, Any], decision: dict[str, Any]) -> str:
-    reasons = set(document.get("expectReasons") or [])
-    if "AUTH_DELEGATION_REVOKED" in reasons:
-        return "REVOKED"
-    if "AUTH_DELEGATION_EXPIRED" in reasons:
-        return "EXPIRED"
-    if "SIGNATURE_INVALID" in reasons and "HALT_AUTHORITY" in reasons:
-        return "UNVERIFIED"
-    if "POLICY_DENIED" in reasons or (decision.get("result") or {}).get("verdict") == "deny":
-        return "DENIED"
-    if document.get("expected") == "allowed":
-        return "VALID"
-    if "HALT_AUTHORITY" in reasons:
-        return "INVALID"
-    return "NOT_ESTABLISHED"
+def _delegation_chain_continuity(path: list[dict[str, Any]]) -> bool:
+    if not path:
+        return False
+    if path[0].get("parent_delegation_id") not in (None, ""):
+        return False
+    for previous, current in zip(path, path[1:]):
+        if current.get("parent_delegation_id") != previous.get("delegation_id"):
+            return False
+    return True
 
 
 def _receipt_authentication_status(
@@ -63,24 +59,79 @@ def _receipt_authentication_status(
         "decision_signature_invalid" in sub_results
         or ("SIGNATURE_INVALID" in reasons and "HALT_AUTHORITY" in reasons)
     ):
-        return "FAILED_BY_FIXTURE_ORACLE"
+        return "FAILED_BY_EXTERNAL_CONFORMANCE"
 
     if signer != issuer:
         return "CLAIMED_SIGNER_MISMATCH"
-
-    # Agent Replay preserves APS's conformance result but does not independently
-    # perform Ed25519/EIP-712 cryptographic verification in this adapter.
-    return "CONSISTENT_WITH_FIXTURE"
+    return "CLAIM_CONSISTENT_NOT_CRYPTOGRAPHICALLY_VERIFIED"
 
 
-def reconstruct_aps_fixture(document: dict[str, Any]) -> dict[str, Any]:
-    """Map an APS oracle-safety-check fixture into authority-safe Replay evidence.
+def _external_authority_disposition(document: dict[str, Any], decision: dict[str, Any]) -> str:
+    reasons = set(document.get("expectReasons") or [])
+    if "AUTH_DELEGATION_REVOKED" in reasons:
+        return "REVOKED"
+    if "AUTH_DELEGATION_EXPIRED" in reasons:
+        return "EXPIRED"
+    if "SIGNATURE_INVALID" in reasons and "HALT_AUTHORITY" in reasons:
+        return "SIGNATURE_INVALID"
+    if "POLICY_DENIED" in reasons or (decision.get("result") or {}).get("verdict") == "deny":
+        return "DENIED"
+    if document.get("expected") == "allowed":
+        return "ALLOWED"
+    if "HALT_AUTHORITY" in reasons:
+        return "HALT"
+    return "NOT_ESTABLISHED"
 
-    This adapter intentionally separates claimed identity, receipt signer,
-    delegated authority, policy decision, and observed execution. It consumes
-    the APS fixture's conformance outcome as external evidence and never treats
-    a pre-dispatch permit as proof that execution occurred.
-    """
+
+def _binding_status(
+    *,
+    action_ref_match: bool,
+    receipt_link_match: bool,
+    delegation_ref_match: bool,
+    chain_continuity: bool,
+) -> str:
+    checks = (action_ref_match, receipt_link_match, delegation_ref_match, chain_continuity)
+    if all(checks):
+        return "COMPLETE"
+    if any(checks):
+        return "PARTIAL"
+    return "BROKEN"
+
+
+def _execution_binding(
+    events: list[dict[str, Any]],
+    *,
+    action_ref: Any,
+    claimed_actor: Any,
+) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+    if not events:
+        return "NOT_OBSERVED", [], []
+
+    action_bound: list[dict[str, Any]] = []
+    actor_bound: list[dict[str, Any]] = []
+    for item in events:
+        if not isinstance(item, dict):
+            continue
+        if action_ref is not None and item.get("action_ref") == action_ref:
+            action_bound.append(item)
+            actor = item.get("actor") or item.get("subject_agent") or item.get("executor")
+            if claimed_actor is not None and actor == claimed_actor:
+                actor_bound.append(item)
+
+    if actor_bound:
+        return "ACTOR_BOUND", action_bound, actor_bound
+    if action_bound:
+        return "ACTION_BOUND", action_bound, []
+    return "EVIDENCE_PRESENT_UNBOUND", [], []
+
+
+def reconstruct_aps_fixture(
+    document: dict[str, Any],
+    *,
+    input_sha256: str | None = None,
+    input_provenance: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Reconstruct APS authority evidence without upgrading unsupported claims."""
     envelope = document.get("envelope")
     if not isinstance(envelope, dict):
         raise ValueError("APS fixture must contain an envelope object")
@@ -93,35 +144,70 @@ def reconstruct_aps_fixture(document: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(delegations, list):
         raise ValueError("APS envelope delegations must be a list")
 
+    path = _delegation_path(delegations)
+    leaf = path[-1] if path else {}
+    claimed_actor = intent.get("subject_agent") or intent.get("issuer")
     intent_sig = _first_signature(intent)
     decision_sig = _first_signature(decision)
+
     intent_action_ref = intent.get("action_ref")
     decision_action_ref = decision.get("action_ref")
     action_ref_match = bool(intent_action_ref) and intent_action_ref == decision_action_ref
 
-    path = _delegation_path(delegations)
-    authority_root = path[0].get("issuer") if path else None
+    receipt_link_match = (
+        bool(intent.get("receipt_id"))
+        and decision.get("prev") == intent.get("receipt_id")
+    )
 
-    explicit_execution = envelope.get("execution_events")
-    if explicit_execution is None:
-        explicit_execution = document.get("execution_events")
-    if not isinstance(explicit_execution, list):
-        explicit_execution = []
+    intent_delegation_ref = intent.get("delegation_ref")
+    decision_delegation_ref = decision.get("delegation_ref")
+    leaf_delegation_id = leaf.get("delegation_id")
+    delegation_ref_match = (
+        bool(intent_delegation_ref)
+        and intent_delegation_ref == decision_delegation_ref
+        and intent_delegation_ref == leaf_delegation_id
+    )
 
-    authority_status = _authority_status(document, decision)
+    chain_continuity = _delegation_chain_continuity(path)
+    binding_status = _binding_status(
+        action_ref_match=action_ref_match,
+        receipt_link_match=receipt_link_match,
+        delegation_ref_match=delegation_ref_match,
+        chain_continuity=chain_continuity,
+    )
 
-    can_establish = [
-        "The action identity claimed by the APS intent receipt.",
-        "The signer identity asserted by each supplied receipt.",
-        "The delegation path carried by the supplied APS envelope.",
-        "The gateway policy decision and whether it binds to the same action_ref.",
-    ]
+    raw_execution = envelope.get("execution_events")
+    if raw_execution is None:
+        raw_execution = document.get("execution_events")
+    execution_events = [item for item in raw_execution if isinstance(item, dict)] if isinstance(raw_execution, list) else []
+    execution_status, action_bound, actor_bound = _execution_binding(
+        execution_events,
+        action_ref=intent_action_ref,
+        claimed_actor=claimed_actor,
+    )
+
+    provenance = input_provenance if isinstance(input_provenance, dict) else {}
+    external_disposition = _external_authority_disposition(document, decision)
+
     cannot_establish = [
-        "Independent cryptographic validity beyond the APS fixture oracle result.",
+        "Independent Ed25519/EIP-712 cryptographic validity from this adapter alone.",
+        "That APS external conformance assertions are true beyond the supplied fixture evidence.",
     ]
-    if not explicit_execution:
+    if execution_status == "NOT_OBSERVED":
         cannot_establish.append(
-            "Whether the action was dispatched or executed; no post-execution event is supplied."
+            "Whether the action was dispatched or executed; no post-execution evidence is supplied."
+        )
+    elif execution_status == "EVIDENCE_PRESENT_UNBOUND":
+        cannot_establish.append(
+            "Whether supplied execution evidence belongs to this action; no execution event binds to the intent action_ref."
+        )
+    elif execution_status == "ACTION_BOUND":
+        cannot_establish.append(
+            "Whether the action-bound execution evidence was performed by the claimed actor."
+        )
+    else:
+        cannot_establish.append(
+            "Cryptographic authentication of the actor-bound execution evidence."
         )
 
     return {
@@ -129,13 +215,31 @@ def reconstruct_aps_fixture(document: dict[str, Any]) -> dict[str, Any]:
         "source": {
             "system": "Agent Passport System",
             "fixture": document.get("fixture"),
-            "pinned_revision": APS_FIXTURE_REVISION,
-            "external_conformance_outcome": document.get("expected"),
-            "external_conformance_reasons": list(document.get("expectReasons") or []),
-            "external_sub_results": list(document.get("expected_sub_results") or []),
+            "adapter_tested_against": {
+                "repository": APS_FIXTURE_REPOSITORY,
+                "revision": APS_FIXTURE_REVISION,
+                "fixture_family": APS_FIXTURE_FAMILY,
+            },
+            "input_provenance": {
+                "repository": provenance.get("repository"),
+                "revision": provenance.get("revision"),
+                "path": provenance.get("path"),
+                "sha256": input_sha256,
+                "provenance_status": (
+                    "SUPPLIED" if any(provenance.get(key) for key in ("repository", "revision", "path"))
+                    else "UNKNOWN"
+                ),
+            },
+            "external_conformance": {
+                "outcome": document.get("expected"),
+                "reasons": list(document.get("expectReasons") or []),
+                "sub_results": list(document.get("expected_sub_results") or []),
+                "authority_disposition": external_disposition,
+                "scope": "SUPPLIED_APS_FIXTURE_ASSERTION",
+            },
         },
         "identity": {
-            "claimed_actor": intent.get("subject_agent") or intent.get("issuer"),
+            "claimed_actor": claimed_actor,
             "intent_issuer": intent.get("issuer"),
             "intent_signer": intent_sig.get("signer"),
             "intent_authentication": _receipt_authentication_status(
@@ -143,10 +247,17 @@ def reconstruct_aps_fixture(document: dict[str, Any]) -> dict[str, Any]:
             ),
         },
         "authority": {
-            "root_principal": authority_root,
+            "root_principal": path[0].get("issuer") if path else None,
+            "leaf_delegation_id": leaf_delegation_id,
             "delegation_path": path,
-            "status": authority_status,
-            "delegation_ref": intent.get("delegation_ref"),
+            "chain_continuity": chain_continuity,
+            "evidence_status": (
+                "CHAIN_BOUND" if binding_status == "COMPLETE"
+                else "CHAIN_PRESENT_UNBOUND" if path
+                else "MISSING"
+            ),
+            "external_conformance_disposition": external_disposition,
+            "replay_verification": "NOT_INDEPENDENTLY_CRYPTOGRAPHICALLY_VERIFIED",
         },
         "policy": {
             "issuer": decision.get("issuer"),
@@ -157,18 +268,47 @@ def reconstruct_aps_fixture(document: dict[str, Any]) -> dict[str, Any]:
             "verdict": (decision.get("result") or {}).get("verdict"),
             "reason": (decision.get("result") or {}).get("reason"),
         },
-        "action_binding": {
-            "intent_action_ref": intent_action_ref,
-            "decision_action_ref": decision_action_ref,
-            "matched": action_ref_match,
-            "decision_prev": decision.get("prev"),
-            "intent_receipt_id": intent.get("receipt_id"),
+        "binding": {
+            "status": binding_status,
+            "action_ref": {
+                "intent": intent_action_ref,
+                "decision": decision_action_ref,
+                "matched": action_ref_match,
+            },
+            "receipt_link": {
+                "intent_receipt_id": intent.get("receipt_id"),
+                "decision_prev": decision.get("prev"),
+                "matched": receipt_link_match,
+            },
+            "delegation_ref": {
+                "intent": intent_delegation_ref,
+                "decision": decision_delegation_ref,
+                "leaf": leaf_delegation_id,
+                "matched": delegation_ref_match,
+            },
+            "delegation_chain_continuity": chain_continuity,
         },
-        "observed_execution": explicit_execution,
-        "execution_status": "OBSERVED" if explicit_execution else "NOT_OBSERVED",
+        "execution": {
+            "status": execution_status,
+            "evidence_count": len(execution_events),
+            "action_bound_count": len(action_bound),
+            "actor_bound_count": len(actor_bound),
+            "action_bound_events": action_bound,
+            "actor_bound_events": actor_bound,
+            "cryptographic_authentication": "NOT_VERIFIED",
+        },
         "evidence_boundary": {
-            "can_establish": can_establish,
+            "can_establish": [
+                "The actor identity claimed by the supplied APS intent receipt.",
+                "The signer identities asserted by supplied receipts.",
+                "Structural action_ref, receipt-link, delegation-ref, and delegation-chain bindings.",
+                "The supplied gateway policy decision.",
+                "Whether supplied execution events structurally bind to the same action and claimed actor.",
+            ],
             "cannot_establish": cannot_establish,
             "permit_is_execution": False,
+            "monotonic_evidence_rule": (
+                "Claims may only be upgraded when additional evidence supports the transition."
+            ),
         },
     }
