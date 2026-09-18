@@ -149,7 +149,7 @@
             "NO_EXECUTION_EVIDENCE",
             "EXECUTION_EVIDENCE_UNBOUND",
             "EXECUTION_EVIDENCE_PARTIALLY_BOUND",
-            "EXECUTION_BOUND_TO_ACTION"
+            "EXECUTION_EVIDENCE_BOUND_TO_ACTION"
           ]
         },
         "malformed_event_count": {
@@ -166,7 +166,7 @@
         "NO_EXECUTION_EVIDENCE",
         "EXECUTION_EVIDENCE_UNBOUND",
         "EXECUTION_EVIDENCE_PARTIALLY_BOUND",
-        "EXECUTION_BOUND_TO_ACTION"
+        "EXECUTION_EVIDENCE_BOUND_TO_ACTION"
       ]
     },
     "evidence_boundary": {
