@@ -67,7 +67,7 @@
       "type":"object",
       "required":["status","evidence_count","action_bound_count","actor_bound_count","action_bound_events","actor_bound_events","cryptographic_authentication"],
       "properties":{
-        "status":{"enum":["NOT_OBSERVED","EVIDENCE_PRESENT_UNBOUND","ACTION_BOUND","ACTOR_BOUND"]},
+        "status":{"enum":["NOT_OBSERVED","EVIDENCE_PRESENT_UNBOUND","EVIDENCE_ACTION_BOUND","EVIDENCE_ACTOR_BOUND"]},
         "evidence_count":{"type":"integer","minimum":0},
         "action_bound_count":{"type":"integer","minimum":0},
         "actor_bound_count":{"type":"integer","minimum":0},
