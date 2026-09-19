@@ -7,9 +7,16 @@ from .model import CanonicalEvent
 
 
 def mismatches(event: CanonicalEvent) -> list[dict[str, Any]]:
+    """Return mismatches only when an observed value is actually present.
+
+    Missing observation is absence of evidence, not evidence of mismatch.
+    Explicit JSON null remains an observation and can match or mismatch.
+    """
     out: list[dict[str, Any]] = []
     for field, expected in event.expected.items():
-        observed = event.observed.get(field)
+        if field not in event.observed:
+            continue
+        observed = event.observed[field]
         if observed != expected:
             out.append(
                 {
@@ -19,6 +26,11 @@ def mismatches(event: CanonicalEvent) -> list[dict[str, Any]]:
                 }
             )
     return out
+
+
+def not_observed(event: CanonicalEvent) -> list[str]:
+    """Return expected fields for which no observed key was supplied."""
+    return [field for field in event.expected if field not in event.observed]
 
 
 def build_divergences(
