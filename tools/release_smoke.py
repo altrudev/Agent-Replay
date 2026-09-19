@@ -28,15 +28,17 @@ def main() -> None:
         wheels = temp / "wheels"
         wheels.mkdir()
 
+        # Build through the project's declared PEP 517 backend directly.
+        # This keeps the smoke test fully offline and avoids importing the
+        # distro pip network stack merely to build a local wheel.
         run([
             sys.executable,
-            "-m",
-            "pip",
-            "wheel",
-            ".",
-            "--no-deps",
-            "--no-build-isolation",
-            "--wheel-dir",
+            "-c",
+            (
+                "from setuptools import build_meta;"
+                "import sys;"
+                "print(build_meta.build_wheel(sys.argv[1]))"
+            ),
             str(wheels),
         ])
         wheel_files = list(wheels.glob("agent_replay-*.whl"))
