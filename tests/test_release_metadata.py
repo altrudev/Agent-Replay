@@ -35,3 +35,12 @@ def test_ddc_adapter_version_matches_core_and_dependency_floor():
     assert adapter_project["version"] == core_version
     assert adapter_module_version == core_version
     assert f"agent-replay>={core_version},<0.7.0" in adapter_project["dependencies"]
+
+
+def test_release_smoke_build_backend_is_declared_for_dev_tests():
+    project = _pyproject(ROOT / "pyproject.toml")
+    build_requirements = project["build-system"]["requires"]
+    dev_requirements = project["project"]["optional-dependencies"]["dev"]
+
+    assert any(item.startswith("setuptools") for item in build_requirements)
+    assert any(item.startswith("setuptools") for item in dev_requirements)
