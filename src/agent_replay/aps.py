@@ -126,48 +126,142 @@ def _binding(
     }
 
 
+def _action_result_receipts(
+    document: dict[str, Any],
+    envelope: dict[str, Any],
+) -> tuple[list[dict[str, Any]], int]:
+    raw = envelope.get("action_results")
+    if raw is None:
+        single = envelope.get("action_result")
+        if single is not None:
+            raw = [single]
+    if raw is None:
+        raw = document.get("action_results")
+    if raw is None:
+        single = document.get("action_result")
+        if single is not None:
+            raw = [single]
+
+    if raw is None:
+        return [], 0
+    if not isinstance(raw, list):
+        return [], 1
+
+    receipts = [item for item in raw if isinstance(item, dict)]
+    return receipts, len(raw) - len(receipts)
+
+
+def _normalize_action_result(
+    receipt: dict[str, Any],
+    *,
+    decision: dict[str, Any],
+) -> dict[str, Any]:
+    result = receipt.get("result")
+    if not isinstance(result, dict):
+        result = {}
+
+    decision_receipt_id = decision.get("receipt_id")
+    prev = receipt.get("prev")
+    return {
+        "evidence_kind": "APS_ACTION_RESULT",
+        "artifact_type": receipt.get("artifact_type") or receipt.get("type") or "aps:action-result:v1",
+        "receipt_id": receipt.get("receipt_id"),
+        "issuer": receipt.get("issuer"),
+        "actor": receipt.get("actor"),
+        "action_ref": receipt.get("action_ref"),
+        "decision_ref": receipt.get("decision_ref"),
+        "prev": prev,
+        "status": result.get("status") or receipt.get("status"),
+        "effect_ref": result.get("effect_ref") or receipt.get("effect_ref"),
+        "error_code": result.get("error_code") or receipt.get("error_code"),
+        "decision_receipt_id": decision_receipt_id,
+        "prev_matches_decision_receipt": (
+            bool(decision_receipt_id) and prev == decision_receipt_id
+        ),
+        "external_effect_proof": False,
+        "observation_scope": "ENFORCEMENT_BOUNDARY_POST_DISPATCH",
+    }
+
+
 def _execution_evidence(
     document: dict[str, Any],
     envelope: dict[str, Any],
     *,
     action_ref: Any,
     claimed_actor: Any,
+    decision: dict[str, Any],
 ) -> dict[str, Any]:
     raw = envelope.get("execution_events")
     if raw is None:
         raw = document.get("execution_events")
     if isinstance(raw, list):
-        events = [item for item in raw if isinstance(item, dict)]
-        malformed_count = len(raw) - len(events)
-    else:
-        events = []
+        generic_events = [item for item in raw if isinstance(item, dict)]
+        malformed_count = len(raw) - len(generic_events)
+    elif raw is None:
+        generic_events = []
         malformed_count = 0
+    else:
+        generic_events = []
+        malformed_count = 1
+
+    action_results, malformed_action_results = _action_result_receipts(document, envelope)
+    malformed_count += malformed_action_results
+
+    events: list[dict[str, Any]] = []
+    for event in generic_events:
+        normalized = dict(event)
+        normalized.setdefault("evidence_kind", "EXECUTION_EVENT")
+        normalized.setdefault("external_effect_proof", False)
+        events.append(normalized)
+    events.extend(
+        _normalize_action_result(receipt, decision=decision)
+        for receipt in action_results
+    )
 
     if not events and malformed_count == 0:
         return {
             "status": "NO_EXECUTION_EVIDENCE",
             "events": [],
             "bound_events": [],
+            "partially_bound_events": [],
             "unbound_events": [],
             "malformed_event_count": 0,
             "independent_authentication": "NOT_VERIFIED",
+            "external_effect_proof": False,
         }
 
     bound: list[dict[str, Any]] = []
+    partial: list[dict[str, Any]] = []
     unbound: list[dict[str, Any]] = []
+
     for event in events:
         event_action_ref = event.get("action_ref")
         event_actor = event.get("actor")
         action_match = bool(action_ref) and event_action_ref == action_ref
-        actor_match = event_actor in (None, claimed_actor)
+        actor_present = event_actor not in (None, "")
+        actor_match = actor_present and event_actor == claimed_actor
+        evidence_kind = event.get("evidence_kind")
+
+        if evidence_kind == "APS_ACTION_RESULT":
+            receipt_link = event.get("prev_matches_decision_receipt") is True
+            if action_match and actor_match and receipt_link:
+                bound.append(event)
+            elif action_match and (actor_match or not actor_present):
+                partial.append(event)
+            else:
+                unbound.append(event)
+            continue
+
         if action_match and actor_match:
             bound.append(event)
+        elif action_match and not actor_present:
+            partial.append(event)
         else:
             unbound.append(event)
 
-    if bound and not unbound and malformed_count == 0:
+    if bound and not partial and not unbound and malformed_count == 0:
         status = "EXECUTION_EVIDENCE_BOUND_TO_ACTION"
-    elif bound:
+    elif bound or partial:
         status = "EXECUTION_EVIDENCE_PARTIALLY_BOUND"
     else:
         status = "EXECUTION_EVIDENCE_UNBOUND"
@@ -176,9 +270,11 @@ def _execution_evidence(
         "status": status,
         "events": events,
         "bound_events": bound,
+        "partially_bound_events": partial,
         "unbound_events": unbound,
         "malformed_event_count": malformed_count,
         "independent_authentication": "NOT_VERIFIED",
+        "external_effect_proof": False,
     }
 
 
@@ -210,6 +306,7 @@ def reconstruct_aps_fixture(
         envelope,
         action_ref=intent.get("action_ref"),
         claimed_actor=claimed_actor,
+        decision=decision,
     )
     intent_sig = _first_signature(intent)
     decision_sig = _first_signature(decision)
@@ -279,7 +376,8 @@ def reconstruct_aps_fixture(
             "claims": [
                 "APS fixture outcomes are preserved as external conformance evidence.",
                 "Replay independently checks structural references but does not independently verify Ed25519 or EIP-712 signatures.",
-                "Execution is only promoted to bound evidence when an execution event binds to the same action_ref and does not contradict the claimed actor.",
+                "Execution is only promoted to fully bound evidence when action identity and actor identity are both present and consistent; missing actor identity remains partially bound.",
+                "APS action-result receipts are treated as enforcement-boundary post-dispatch observations, not proof that an external effect occurred or settled.",
             ],
         },
     }
