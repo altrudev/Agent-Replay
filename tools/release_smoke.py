@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 import subprocess
 import sys
 import tempfile
-import venv
+import zipfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
