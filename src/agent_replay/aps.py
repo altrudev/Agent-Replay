@@ -161,20 +161,30 @@ def _normalize_action_result(
         result = {}
 
     decision_receipt_id = decision.get("receipt_id")
+    decision_ref = decision.get("decision_ref")
+    supplied_decision_ref = receipt.get("decision_ref")
     prev = receipt.get("prev")
     return {
         "evidence_kind": "APS_ACTION_RESULT",
-        "artifact_type": receipt.get("artifact_type") or receipt.get("type") or "aps:action-result:v1",
+        "artifact_type": (
+            receipt.get("artifact_type")
+            or receipt.get("receipt_type")
+            or receipt.get("type")
+            or "aps:action-result:v1"
+        ),
         "receipt_id": receipt.get("receipt_id"),
         "issuer": receipt.get("issuer"),
-        "actor": receipt.get("actor"),
+        "actor": receipt.get("subject_agent") or receipt.get("actor"),
         "action_ref": receipt.get("action_ref"),
-        "decision_ref": receipt.get("decision_ref"),
+        "decision_ref": supplied_decision_ref,
         "prev": prev,
         "status": result.get("status") or receipt.get("status"),
         "effect_ref": result.get("effect_ref") or receipt.get("effect_ref"),
         "error_code": result.get("error_code") or receipt.get("error_code"),
         "decision_receipt_id": decision_receipt_id,
+        "decision_ref_matches_decision": (
+            bool(decision_ref) and supplied_decision_ref == decision_ref
+        ),
         "prev_matches_decision_receipt": (
             bool(decision_receipt_id) and prev == decision_receipt_id
         ),
@@ -244,7 +254,8 @@ def _execution_evidence(
 
         if evidence_kind == "APS_ACTION_RESULT":
             receipt_link = event.get("prev_matches_decision_receipt") is True
-            if action_match and actor_match and receipt_link:
+            decision_ref_match = event.get("decision_ref_matches_decision") is True
+            if action_match and actor_match and receipt_link and decision_ref_match:
                 bound.append(event)
             elif action_match and (actor_match or not actor_present):
                 partial.append(event)
