@@ -254,9 +254,11 @@ def sanitize_aps_reconstruction(report: dict[str, Any]) -> dict[str, Any]:
         "execution": {
             "status": _safe_token(execution.get("status")),
             "bound_event_count": len(execution.get("bound_events") or []),
+            "partially_bound_event_count": len(execution.get("partially_bound_events") or []),
             "unbound_event_count": len(execution.get("unbound_events") or []),
             "malformed_event_count": int(execution.get("malformed_event_count") or 0),
             "independent_authentication": _safe_token(execution.get("independent_authentication")),
+            "external_effect_proof": False,
         },
         "evidence_boundary": {
             "permit_is_execution": False,
