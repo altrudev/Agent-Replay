@@ -26,7 +26,7 @@ Changelog = "https://github.com/altrudev/Agent-Replay/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 trace = ["agentrust-trace==0.9.0"]
-dev = ["pytest>=8,<10", "jsonschema>=4.23,<5"]
+dev = ["pytest>=8,<10", "jsonschema>=4.23,<5", "setuptools>=68"]
 
 [project.scripts]
 agent-replay = "agent_replay.cli:main"
