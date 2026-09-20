@@ -347,7 +347,7 @@ def test_aps_action_result_without_actor_remains_partially_bound():
         "issuer": "did:aps:gateway-001",
         "action_ref": document["envelope"]["intent"]["action_ref"],
         "prev": decision["receipt_id"],
-        "decision_ref": "sha256:decision-material",
+        "decision_ref": decision["decision_ref"],
         "result": {
             "status": "completed",
             "effect_ref": "effect-123",
@@ -374,10 +374,10 @@ def test_aps_action_result_can_be_fully_bound_when_actor_and_decision_link_match
         "artifact_type": "aps:action-result:v1",
         "receipt_id": "sha256:action-result-2",
         "issuer": "did:aps:gateway-001",
-        "actor": document["envelope"]["intent"]["subject_agent"],
+        "subject_agent": document["envelope"]["intent"]["subject_agent"],
         "action_ref": document["envelope"]["intent"]["action_ref"],
         "prev": decision["receipt_id"],
-        "decision_ref": "sha256:decision-material",
+        "decision_ref": decision["decision_ref"],
         "result": {"status": "completed"},
     }
 
@@ -391,13 +391,14 @@ def test_aps_action_result_can_be_fully_bound_when_actor_and_decision_link_match
 
 def test_aps_action_result_wrong_prev_is_not_fully_bound():
     document = load_fixture("pass")
+    decision = document["envelope"]["decision"]
     document["envelope"]["action_result"] = {
         "artifact_type": "aps:action-result:v1",
         "receipt_id": "sha256:action-result-3",
-        "actor": document["envelope"]["intent"]["subject_agent"],
+        "subject_agent": document["envelope"]["intent"]["subject_agent"],
         "action_ref": document["envelope"]["intent"]["action_ref"],
         "prev": "sha256:not-the-decision",
-        "decision_ref": "sha256:decision-material",
+        "decision_ref": decision["decision_ref"],
         "result": {"status": "completed"},
     }
 
@@ -410,12 +411,13 @@ def test_aps_action_result_wrong_prev_is_not_fully_bound():
 
 def test_aps_action_result_wrong_action_ref_is_unbound():
     document = load_fixture("pass")
+    decision = document["envelope"]["decision"]
     document["envelope"]["action_result"] = {
         "artifact_type": "aps:action-result:v1",
-        "actor": document["envelope"]["intent"]["subject_agent"],
+        "subject_agent": document["envelope"]["intent"]["subject_agent"],
         "action_ref": "sha256:different-action",
-        "prev": document["envelope"]["decision"]["receipt_id"],
-        "decision_ref": "sha256:decision-material",
+        "prev": decision["receipt_id"],
+        "decision_ref": decision["decision_ref"],
         "result": {"status": "completed"},
     }
 
@@ -428,12 +430,13 @@ def test_aps_action_result_wrong_action_ref_is_unbound():
 
 def test_action_result_is_not_external_effect_proof():
     document = load_fixture("pass")
+    decision = document["envelope"]["decision"]
     document["envelope"]["action_result"] = {
         "artifact_type": "aps:action-result:v1",
-        "actor": document["envelope"]["intent"]["subject_agent"],
+        "subject_agent": document["envelope"]["intent"]["subject_agent"],
         "action_ref": document["envelope"]["intent"]["action_ref"],
-        "prev": document["envelope"]["decision"]["receipt_id"],
-        "decision_ref": "sha256:decision-material",
+        "prev": decision["receipt_id"],
+        "decision_ref": decision["decision_ref"],
         "result": {
             "status": "completed",
             "effect_ref": "effect-123",
@@ -447,3 +450,46 @@ def test_action_result_is_not_external_effect_proof():
         "not proof that an external effect occurred or settled" in claim
         for claim in report["evidence_boundary"]["claims"]
     )
+
+
+
+def test_aps_action_result_wrong_decision_ref_is_not_fully_bound():
+    document = load_fixture("pass")
+    decision = document["envelope"]["decision"]
+    document["envelope"]["action_result"] = {
+        "receipt_type": "aps:action-result:v1",
+        "subject_agent": document["envelope"]["intent"]["subject_agent"],
+        "action_ref": document["envelope"]["intent"]["action_ref"],
+        "prev": decision["receipt_id"],
+        "decision_ref": "sha256:not-the-decision-material",
+        "result": {"status": "completed"},
+    }
+
+    report = reconstruct_aps_fixture(document)
+
+    assert report["execution_status"] == "EXECUTION_EVIDENCE_PARTIALLY_BOUND"
+    assert report["observed_execution"] == []
+    event = report["execution"]["partially_bound_events"][0]
+    assert event["decision_ref_matches_decision"] is False
+    assert event["prev_matches_decision_receipt"] is True
+
+
+def test_aps_action_result_receipt_type_and_subject_agent_are_normalized():
+    document = load_fixture("pass")
+    decision = document["envelope"]["decision"]
+    actor = document["envelope"]["intent"]["subject_agent"]
+    document["envelope"]["action_result"] = {
+        "receipt_type": "aps:action-result:v1",
+        "subject_agent": actor,
+        "action_ref": document["envelope"]["intent"]["action_ref"],
+        "prev": decision["receipt_id"],
+        "decision_ref": decision["decision_ref"],
+        "result": {"status": "completed"},
+    }
+
+    report = reconstruct_aps_fixture(document)
+    event = report["observed_execution"][0]
+
+    assert event["artifact_type"] == "aps:action-result:v1"
+    assert event["actor"] == actor
+    assert event["decision_ref_matches_decision"] is True
