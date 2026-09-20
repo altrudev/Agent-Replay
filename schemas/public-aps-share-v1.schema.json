@@ -50,9 +50,11 @@
       "required": [
         "status",
         "bound_event_count",
+        "partially_bound_event_count",
         "unbound_event_count",
         "malformed_event_count",
-        "independent_authentication"
+        "independent_authentication",
+        "external_effect_proof"
       ],
       "properties": {
         "status": {
@@ -62,6 +64,10 @@
           ]
         },
         "bound_event_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "partially_bound_event_count": {
           "type": "integer",
           "minimum": 0
         },
@@ -78,6 +84,9 @@
             "string",
             "null"
           ]
+        },
+        "external_effect_proof": {
+          "const": false
         }
       }
     },

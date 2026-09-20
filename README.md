@@ -474,7 +474,7 @@ Before a release, also verify the built core wheel in a fresh virtual environmen
 python tools/release_smoke.py
 ```
 
-That smoke gate builds the wheel without dependency resolution, installs it into a clean environment, and exercises `agent-replay --version`, `doctor`, reconstruction, and safe-share export.
+That smoke gate builds the wheel through the declared build backend, extracts the wheel into an isolated temporary import target, verifies the packaged console entry point/import path, and exercises `agent-replay --version`, `doctor`, reconstruction, and safe-share export. Install `.[dev]` first so the test environment contains the declared build backend used by the smoke gate.
 
 Benchmark reconstruction on deterministic synthetic chains:
 

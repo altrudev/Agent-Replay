@@ -139,9 +139,11 @@
         "status",
         "events",
         "bound_events",
+        "partially_bound_events",
         "unbound_events",
         "malformed_event_count",
-        "independent_authentication"
+        "independent_authentication",
+        "external_effect_proof"
       ],
       "properties": {
         "status": {
@@ -155,6 +157,9 @@
         "malformed_event_count": {
           "type": "integer",
           "minimum": 0
+        },
+        "external_effect_proof": {
+          "const": false
         }
       }
     },

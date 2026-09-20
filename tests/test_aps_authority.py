@@ -209,6 +209,8 @@ def test_aps_safe_share_conforms_and_omits_raw_evidence():
     jsonschema.Draft202012Validator(schema).validate(public)
     assert public["schema"] == "agent-replay.public-aps-share.v1"
     assert public["execution"]["bound_event_count"] == 0
+    assert public["execution"]["partially_bound_event_count"] == 0
+    assert public["execution"]["external_effect_proof"] is False
     assert "delegation_path" not in public["authority"]
     assert "events" not in public["execution"]
 
@@ -314,3 +316,180 @@ def test_aps_public_share_redacts_free_form_external_strings():
     assert public["external_conformance"]["reason_codes"] == ["[REDACTED_TOKEN]"]
     assert public["policy"]["verdict"] == "[REDACTED_TOKEN]"
     assert "user@example.com" not in json.dumps(public)
+
+
+
+def test_missing_actor_with_matching_action_ref_is_only_partially_bound():
+    document = load_fixture("pass")
+    document["envelope"]["execution_events"] = [
+        {
+            "event_id": "execution-actor-missing",
+            "action_ref": document["envelope"]["intent"]["action_ref"],
+            "status": "completed",
+        }
+    ]
+
+    report = reconstruct_aps_fixture(document)
+
+    assert report["execution_status"] == "EXECUTION_EVIDENCE_PARTIALLY_BOUND"
+    assert report["observed_execution"] == []
+    assert report["execution"]["bound_events"] == []
+    assert len(report["execution"]["partially_bound_events"]) == 1
+    assert report["execution"]["external_effect_proof"] is False
+
+
+def test_aps_action_result_without_actor_remains_partially_bound():
+    document = load_fixture("pass")
+    decision = document["envelope"]["decision"]
+    document["envelope"]["action_result"] = {
+        "artifact_type": "aps:action-result:v1",
+        "receipt_id": "sha256:action-result-1",
+        "issuer": "did:aps:gateway-001",
+        "action_ref": document["envelope"]["intent"]["action_ref"],
+        "prev": decision["receipt_id"],
+        "decision_ref": decision["decision_ref"],
+        "result": {
+            "status": "completed",
+            "effect_ref": "effect-123",
+            "error_code": None,
+        },
+    }
+
+    report = reconstruct_aps_fixture(document)
+
+    assert report["execution_status"] == "EXECUTION_EVIDENCE_PARTIALLY_BOUND"
+    assert report["observed_execution"] == []
+    assert len(report["execution"]["partially_bound_events"]) == 1
+    event = report["execution"]["partially_bound_events"][0]
+    assert event["evidence_kind"] == "APS_ACTION_RESULT"
+    assert event["prev_matches_decision_receipt"] is True
+    assert event["observation_scope"] == "ENFORCEMENT_BOUNDARY_POST_DISPATCH"
+    assert event["external_effect_proof"] is False
+
+
+def test_aps_action_result_can_be_fully_bound_when_actor_and_decision_link_match():
+    document = load_fixture("pass")
+    decision = document["envelope"]["decision"]
+    document["envelope"]["action_result"] = {
+        "artifact_type": "aps:action-result:v1",
+        "receipt_id": "sha256:action-result-2",
+        "issuer": "did:aps:gateway-001",
+        "subject_agent": document["envelope"]["intent"]["subject_agent"],
+        "action_ref": document["envelope"]["intent"]["action_ref"],
+        "prev": decision["receipt_id"],
+        "decision_ref": decision["decision_ref"],
+        "result": {"status": "completed"},
+    }
+
+    report = reconstruct_aps_fixture(document)
+
+    assert report["execution_status"] == "EXECUTION_EVIDENCE_BOUND_TO_ACTION"
+    assert len(report["observed_execution"]) == 1
+    assert report["observed_execution"][0]["evidence_kind"] == "APS_ACTION_RESULT"
+    assert report["execution"]["external_effect_proof"] is False
+
+
+def test_aps_action_result_wrong_prev_is_not_fully_bound():
+    document = load_fixture("pass")
+    decision = document["envelope"]["decision"]
+    document["envelope"]["action_result"] = {
+        "artifact_type": "aps:action-result:v1",
+        "receipt_id": "sha256:action-result-3",
+        "subject_agent": document["envelope"]["intent"]["subject_agent"],
+        "action_ref": document["envelope"]["intent"]["action_ref"],
+        "prev": "sha256:not-the-decision",
+        "decision_ref": decision["decision_ref"],
+        "result": {"status": "completed"},
+    }
+
+    report = reconstruct_aps_fixture(document)
+
+    assert report["execution_status"] == "EXECUTION_EVIDENCE_PARTIALLY_BOUND"
+    assert report["observed_execution"] == []
+    assert report["execution"]["partially_bound_events"][0]["prev_matches_decision_receipt"] is False
+
+
+def test_aps_action_result_wrong_action_ref_is_unbound():
+    document = load_fixture("pass")
+    decision = document["envelope"]["decision"]
+    document["envelope"]["action_result"] = {
+        "artifact_type": "aps:action-result:v1",
+        "subject_agent": document["envelope"]["intent"]["subject_agent"],
+        "action_ref": "sha256:different-action",
+        "prev": decision["receipt_id"],
+        "decision_ref": decision["decision_ref"],
+        "result": {"status": "completed"},
+    }
+
+    report = reconstruct_aps_fixture(document)
+
+    assert report["execution_status"] == "EXECUTION_EVIDENCE_UNBOUND"
+    assert report["observed_execution"] == []
+    assert len(report["execution"]["unbound_events"]) == 1
+
+
+def test_action_result_is_not_external_effect_proof():
+    document = load_fixture("pass")
+    decision = document["envelope"]["decision"]
+    document["envelope"]["action_result"] = {
+        "artifact_type": "aps:action-result:v1",
+        "subject_agent": document["envelope"]["intent"]["subject_agent"],
+        "action_ref": document["envelope"]["intent"]["action_ref"],
+        "prev": decision["receipt_id"],
+        "decision_ref": decision["decision_ref"],
+        "result": {
+            "status": "completed",
+            "effect_ref": "effect-123",
+        },
+    }
+
+    report = reconstruct_aps_fixture(document)
+
+    assert report["execution"]["external_effect_proof"] is False
+    assert any(
+        "not proof that an external effect occurred or settled" in claim
+        for claim in report["evidence_boundary"]["claims"]
+    )
+
+
+
+def test_aps_action_result_wrong_decision_ref_is_not_fully_bound():
+    document = load_fixture("pass")
+    decision = document["envelope"]["decision"]
+    document["envelope"]["action_result"] = {
+        "receipt_type": "aps:action-result:v1",
+        "subject_agent": document["envelope"]["intent"]["subject_agent"],
+        "action_ref": document["envelope"]["intent"]["action_ref"],
+        "prev": decision["receipt_id"],
+        "decision_ref": "sha256:not-the-decision-material",
+        "result": {"status": "completed"},
+    }
+
+    report = reconstruct_aps_fixture(document)
+
+    assert report["execution_status"] == "EXECUTION_EVIDENCE_PARTIALLY_BOUND"
+    assert report["observed_execution"] == []
+    event = report["execution"]["partially_bound_events"][0]
+    assert event["decision_ref_matches_decision"] is False
+    assert event["prev_matches_decision_receipt"] is True
+
+
+def test_aps_action_result_receipt_type_and_subject_agent_are_normalized():
+    document = load_fixture("pass")
+    decision = document["envelope"]["decision"]
+    actor = document["envelope"]["intent"]["subject_agent"]
+    document["envelope"]["action_result"] = {
+        "receipt_type": "aps:action-result:v1",
+        "subject_agent": actor,
+        "action_ref": document["envelope"]["intent"]["action_ref"],
+        "prev": decision["receipt_id"],
+        "decision_ref": decision["decision_ref"],
+        "result": {"status": "completed"},
+    }
+
+    report = reconstruct_aps_fixture(document)
+    event = report["observed_execution"][0]
+
+    assert event["artifact_type"] == "aps:action-result:v1"
+    assert event["actor"] == actor
+    assert event["decision_ref_matches_decision"] is True
