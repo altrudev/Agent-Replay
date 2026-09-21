@@ -6,6 +6,8 @@ from typing import Any
 APS_FIXTURE_REPOSITORY = "Agent-Authority-Conformance/aps-conformance-suite"
 APS_FIXTURE_REVISION = "6e8b05b202d727ef18e84e100fc31db11f36529f"
 APS_FIXTURE_FAMILY = "fixtures/cross-stack/oracle-safety-check/oracle-safety-check-v1"
+APS_ACTION_RESULT_FIXTURE_REVISION = "b64cc8dfa889b493bbf285fbb115a988ac54566b"
+APS_ACTION_RESULT_FIXTURE_FAMILY = "fixtures/action-result-binding/"
 
 
 def _first_signature(receipt: dict[str, Any]) -> dict[str, Any]:
@@ -190,6 +192,7 @@ def _normalize_action_result(
         ),
         "external_effect_proof": False,
         "observation_scope": "ENFORCEMENT_BOUNDARY_POST_DISPATCH",
+        "aps_receipt_schema_validation": "NOT_PERFORMED",
     }
 
 
@@ -392,3 +395,66 @@ def reconstruct_aps_fixture(
             ],
         },
     }
+
+
+
+def reconstruct_aps_action_result_case(
+    chain: dict[str, Any],
+    case_name: str,
+    *,
+    input_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Reconstruct one pinned APS action-result binding case without importing its expected outcome."""
+    receipts = chain.get("receipts")
+    cases = chain.get("cases")
+    if not isinstance(receipts, dict) or not isinstance(cases, dict):
+        raise ValueError("APS action-result fixture must contain receipts and cases objects")
+
+    intent = receipts.get("intent")
+    decision = receipts.get("decision_permit")
+    action_result = cases.get(case_name)
+    if not isinstance(intent, dict) or not isinstance(decision, dict):
+        raise ValueError("APS action-result fixture must contain intent and decision_permit receipts")
+    if not isinstance(action_result, dict):
+        raise ValueError(f"unknown APS action-result fixture case: {case_name}")
+
+    document = {
+        "fixture": case_name,
+        "envelope": {
+            "intent": intent,
+            "decision": decision,
+            "delegations": [],
+            "action_result": action_result,
+        },
+        "_agent_replay_source": {
+            "repository": APS_FIXTURE_REPOSITORY,
+            "revision": APS_ACTION_RESULT_FIXTURE_REVISION,
+            "path": f"{APS_ACTION_RESULT_FIXTURE_FAMILY}chain.json#cases.{case_name}",
+        },
+    }
+
+    report = reconstruct_aps_fixture(document, input_sha256=input_sha256)
+    report["adapter_validation"] = {
+        "repository": APS_FIXTURE_REPOSITORY,
+        "revision": APS_ACTION_RESULT_FIXTURE_REVISION,
+        "fixture_family": APS_ACTION_RESULT_FIXTURE_FAMILY,
+        "claim": (
+            "This identifies the pinned action-result fixture used by the adapter. "
+            "Agent Replay re-derives its own binding result and does not import replay_policy "
+            "outcomes from vectors.json."
+        ),
+    }
+    report["fixture_scope"] = "ACTION_RESULT_BINDING_ONLY"
+    report["aps_receipt_schema_validation"] = "NOT_PERFORMED"
+    report["external_conformance"] = {
+        "source": "NOT_IMPORTED_FROM_VECTORS",
+        "fixture": case_name,
+        "outcome": None,
+        "reasons": [],
+        "sub_results": [],
+        "authority_status": "NOT_ESTABLISHED",
+    }
+    report["evidence_boundary"]["claims"].append(
+        "Agent Replay does not independently validate APS ReceiptV1 schema conformance in this adapter; APS schema validity remains a separate evidence layer."
+    )
+    return report
