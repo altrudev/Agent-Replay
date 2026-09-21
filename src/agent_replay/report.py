@@ -57,6 +57,46 @@ def _append_evidence_gaps(lines: list[str], report: dict[str, Any]) -> None:
 
 
 
+def _append_ddc_evidence_model(lines: list[str], report: dict[str, Any]) -> None:
+    model = report.get("ddc_evidence_model")
+    if not isinstance(model, dict) or not model.get("records"):
+        return
+
+    lines.append("")
+    lines.append("DDC EVIDENCE MODEL")
+    lines.append(f"Version: {model.get('model_version', 'unknown')}")
+
+    consequence = model.get("consequence_reconstruction", {})
+    lines.append(
+        "Consequence reconstruction: "
+        f"{len(consequence.get('contemporaneous_event_ids', []))} contemporaneous, "
+        f"{len(consequence.get('later_or_inferred_event_ids', []))} later/inferred"
+    )
+
+    decision = model.get("decision_reconstruction", {})
+    points = decision.get("decision_points", [])
+    lines.append(f"Decision points: {len(points)}")
+    risks = decision.get("retroactive_knowledge_risk_event_ids", [])
+    if risks:
+        lines.append("Retroactive-knowledge risk: " + ", ".join(risks))
+
+    for point in points:
+        lines.append(
+            f"- {point.get('event_id')} actor={point.get('actor')} "
+            f"basis={point.get('decision_basis')}"
+        )
+        missing = point.get("missing_required_evidence", [])
+        if missing:
+            lines.append("  missing required evidence: " + ", ".join(missing))
+
+    contradictions = model.get("contradictions", [])
+    for item in contradictions:
+        lines.append(
+            f"- contradiction at {item.get('event_id')}: "
+            + "; ".join(item.get("claims", []))
+        )
+
+
 def _render_aps_text(report: dict[str, Any]) -> str:
     validation = report.get("adapter_validation", {})
     provenance = report.get("input_provenance", {})
@@ -164,6 +204,7 @@ def render_text(report: dict[str, Any]) -> str:
         if coverage["status"] in {"NO_EXPECTATIONS", "PARTIAL"}:
             lines.append(coverage["claim"])
         _append_evidence_gaps(lines, report)
+        _append_ddc_evidence_model(lines, report)
         _append_trace(lines, report)
         return "\n".join(lines)
 
@@ -204,5 +245,6 @@ def render_text(report: dict[str, Any]) -> str:
         )
 
     _append_evidence_gaps(lines, report)
+    _append_ddc_evidence_model(lines, report)
     _append_trace(lines, report)
     return "\n".join(lines)
