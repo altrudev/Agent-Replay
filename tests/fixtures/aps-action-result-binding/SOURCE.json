@@ -1,0 +1,10 @@
+{
+  "repository": "Agent-Authority-Conformance/aps-conformance-suite",
+  "revision": "b64cc8dfa889b493bbf285fbb115a988ac54566b",
+  "path": "fixtures/action-result-binding/",
+  "git_blob_sha1": {
+    "chain.json": "09f56479055af6aa3a5ed974c9c4b1d8afb34d3a",
+    "vectors.json": "8111e8a3cc12e3d348449bbc2a65236c465978e0"
+  },
+  "purpose": "Pinned external fixture for independent Agent Replay action-result binding verification. Replay outcomes are re-derived locally and are not inherited from vectors.json."
+}
