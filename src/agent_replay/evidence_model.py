@@ -13,9 +13,12 @@ def _parse_time(value: str | None) -> datetime | None:
     if not isinstance(value, str) or not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed
 
 
 def _list(value: Any) -> list[str]:
@@ -114,8 +117,11 @@ def _event_record(event: CanonicalEvent) -> dict[str, Any]:
 
 
 def build_evidence_model(events: list[CanonicalEvent]) -> dict[str, Any]:
-    records = [_event_record(event) for event in events]
-    explicit = [record for record in records if _ddc_meta(_event_by_id(events, record["event_id"]))]
+    explicit = [
+        _event_record(event)
+        for event in events
+        if _ddc_meta(event)
+    ]
 
     contemporaneous = [
         record["event_id"]
@@ -201,9 +207,3 @@ def build_evidence_model(events: list[CanonicalEvent]) -> dict[str, Any]:
         },
     }
 
-
-def _event_by_id(events: list[CanonicalEvent], event_id: str) -> CanonicalEvent:
-    for event in events:
-        if event.event_id == event_id:
-            return event
-    raise KeyError(event_id)
