@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use, evaluate, discuss, or reference Agent Replay, please cite it using this metadata."
+title: "Agent Replay"
+type: software
+authors:
+  - family-names: "Rukhaylo"
+    given-names: "Valentyn"
+    website: "https://altru.dev/about"
+repository-code: "https://github.com/altrudev/Agent-Replay"
+url: "https://altru.dev"
+version: "0.6.0"
+license: "Apache-2.0"
+abstract: "Standalone incident reconstruction for AI-agent executions with bounded evidence handling, causal reconstruction, and explicit trust boundaries."
+keywords:
+  - "AI agents"
+  - "incident reconstruction"
+  - "digital forensics"
+  - "evidence provenance"
+  - "OpenTelemetry"
