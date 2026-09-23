@@ -1,79 +1,115 @@
 # AgenTrust Spotlight Capture — September 2026
 
-This pack is intentionally narrow. It demonstrates exactly what the merged Agent Replay TRACE integration verifies, one fail-closed rejection, and the boundary it does **not** cross.
+This pack is intentionally narrow. It demonstrates exactly what the merged Agent Replay TRACE integration verifies, one visible fail-closed rejection, additional adversarial rejection checks, and the proof boundaries it does **not** cross.
 
 ## Pinned product state
 
 - Agent Replay release: `0.6.0`
-- TRACE dependency in `pyproject.toml`: `agentrust-trace==0.9.0`
+- TRACE dependency: `agentrust-trace==0.9.0`
 - Spotlight preparation branch base: `1f4db7a12e8ddf8853c2533f08f8252f7efbe326`
 - Product: <https://github.com/altrudev/Agent-Replay>
+- Publication runtime constraint set: `docs/agentrust-spotlight-runtime-constraints-py314.txt`
 
-The capture script records the exact checked-out commit and installed package versions in the generated manifest. Those runtime values, not this prose, are the publication evidence.
+The capture script records the exact checked-out commit, Python/runtime information, the full installed package inventory, and a SHA-256 fingerprint of that inventory. Runtime evidence, not this prose, is authoritative for the captured run.
 
-## DDC Radial publication invariants
+## Publication invariants
 
 The spotlight must preserve these distinctions:
 
-1. **Record validity is not incident truth.** A valid TRACE record proves only the verification scope reported by the adapter.
-2. **Actor identity is not authority.** No screenshot should collapse subject/signer identity into delegated authority.
-3. **Policy decision is not execution.** Pre-dispatch authorization must not be presented as proof of a post-dispatch effect.
-4. **Transcript hash is not transcript-to-incident binding.** The merged integration does not independently prove that Replay's incident input is the transcript committed by `tool_transcript.hash`.
-5. **External effect is not established by TRACE verification.** The valid screenshot must not imply that an external system changed state.
-6. **Rejection fails closed.** The rejected case mutates a signed field after signing; the real TRACE verifier must reject it.
-7. **Provenance must be visible.** Every capture must show the current git commit and package versions.
-8. **No borrowed oracle.** The demo reports the verifier result it actually obtains; it does not import an expected label and present it as a measured result.
+1. **Record validity is not incident truth.** A valid TRACE record establishes only the verification scope reported by the adapter.
+2. **Actor identity is not authority.** Subject/signer identity must not be collapsed into delegated authority.
+3. **Policy decision is not execution.** Pre-dispatch authorization is not proof of a post-dispatch effect.
+4. **A signed transcript commitment is not transcript-to-incident binding.** The demo deliberately includes a valid signed `tool_transcript.hash`, but Agent Replay does not independently prove that its incident input is the transcript represented by that hash.
+5. **External effect is not established by TRACE verification.**
+6. **Rejection fails closed.** The visible rejected case mutates a signed subject after signing. Additional adversarial checks mutate the signed transcript hash and use the wrong caller-supplied trusted key.
+7. **Provenance must be visible.** Capture the exact git commit, product/verifier versions, Python runtime, and environment package fingerprint.
+8. **Freshness must not be confused with reproducibility.** Each run generates a fresh key and current `iat`, so record/key hashes intentionally change. Source revision and environment are recorded; bit-for-bit reproducibility is not claimed.
+9. **No borrowed oracle.** The demo reports verifier outcomes it actually obtains.
+10. **Proof horizon is explicit.** Verification stops before transcript-to-incident equivalence, hardware provenance, transparency inclusion, delegated authority, and external-effect claims.
+
+## Why the transcript commitment is present
+
+The valid TRACE specimen contains a synthetic one-call `tool_transcript` commitment. This is deliberate.
+
+The demo proves that the commitment is inside the signed and verified TRACE record. It does **not** supply an incident transcript to Agent Replay and therefore does not evaluate whether Replay input equals the transcript committed by that hash.
+
+Expected manifest state:
+
+```text
+transcript_commitment_presence = VERIFIED_AS_SIGNED_FIELD
+transcript_to_incident_binding = NOT_VERIFIED
+binding_evaluated = false
+```
+
+That is the exact boundary AgenTrust asked us to keep clear.
 
 ## Capture procedure
 
-Run from a clean checkout of the spotlight branch on a DSR worker:
+Use a fresh virtual environment inside the DSR job workspace. Do not install into the host Python environment and do not bypass PEP 668.
 
 ```bash
-python -m pip install -e '.[trace]'
-python scripts/agentrust_spotlight_demo.py
+python3 -m venv .spotlight-venv
+.spotlight-venv/bin/python -m pip install \
+  -c docs/agentrust-spotlight-runtime-constraints-py314.txt \
+  -e '.[trace,dev]'
+```
+
+Run the relevant regression tests:
+
+```bash
+.spotlight-venv/bin/python -m pytest -q \
+  tests/test_trace.py \
+  tests/test_trace_real_verifier.py
+```
+
+Then run the publication demo from the **same checkout and same virtual environment**:
+
+```bash
+.spotlight-venv/bin/python scripts/agentrust_spotlight_demo.py
 cat artifacts/agentrust-spotlight/spotlight-manifest.json
 ```
 
-Then run the relevant regression tests:
-
-```bash
-python -m pytest -q tests/test_trace.py tests/test_trace_real_verifier.py
-```
-
-Do not capture screenshots until both commands pass on the same checkout.
+Do not capture screenshots until both the regression set and demo return success on the same immutable revision.
 
 ## Screenshot 1 — valid TRACE
 
-Capture the terminal output beginning at `VALID TRACE` and include:
+Include:
 
 - `Status: VERIFIED`
 - record SHA-256
 - trusted-key SHA-256
+- signed transcript commitment
 - Agent Replay version
 - `agentrust-trace` version
 - git commit
+- Python version
+- environment packages SHA-256
+- `Fresh artifacts each run: YES`
 - the boundary lines:
+  - `Signed transcript commitment present: VERIFIED_AS_SIGNED_FIELD`
   - `Transcript-to-incident binding: NOT_VERIFIED`
   - `Post-execution effect: NOT_ESTABLISHED_BY_TRACE_VERIFICATION`
 
 Suggested annotation:
 
-> Valid signed TRACE record verified with an independently supplied trusted issuer key. Agent Replay preserves the boundary: this does not prove transcript-to-incident binding or an external post-execution effect.
+> Valid signed TRACE record verified with an independently supplied trusted issuer key. The record contains a signed transcript commitment, but Agent Replay does not claim that this establishes transcript-to-incident binding or an external post-execution effect.
 
 ## Screenshot 2 — rejected TRACE
 
-Capture the `REJECTED TRACE` section and include:
+Include:
 
 - `Status: REJECTED`
 - rejection exception class
 - mutated record SHA-256
-- same package versions and git commit
+- same package/runtime provenance shown for the valid case
 
 Suggested annotation:
 
 > The record was signed, then its subject was changed. The real TRACE verifier rejects the modified record; Agent Replay does not downgrade or reinterpret the failure.
 
-## What not to show
+The additional transcript-hash-tamper and wrong-trusted-key checks should also report `REJECTED` in the terminal/manifest, but they do not need separate screenshots.
+
+## What not to claim
 
 Do not describe the valid record as:
 
@@ -81,9 +117,11 @@ Do not describe the valid record as:
 - proof that a tool transcript matches Replay input,
 - proof of hardware attestation,
 - proof of transparency-ledger inclusion,
-- proof that an external effect occurred.
+- proof of delegated authority,
+- proof that an external effect occurred,
+- or a byte-for-byte reproducible artifact.
 
-Those claims exceed the merged integration.
+Those claims exceed the demonstrated proof horizon.
 
 ## AgenTrust delivery package
 
@@ -92,9 +130,10 @@ Send:
 - one valid annotated screenshot,
 - one rejected annotated screenshot,
 - `spotlight-manifest.json`,
-- current commit SHA,
+- exact commit SHA,
 - Agent Replay and `agentrust-trace` versions,
+- environment package fingerprint,
 - preferred product link: <https://github.com/altrudev/Agent-Replay>,
 - explicit permission for AgenTrust to reproduce the supplied demo/screenshots in the spotlight.
 
-The demo artifacts under `artifacts/agentrust-spotlight/` are run outputs and should not be committed by default. Review them for sensitive values before sharing.
+The run artifacts under `artifacts/agentrust-spotlight/` are generated evidence and should not be committed by default. Review them before sharing.
