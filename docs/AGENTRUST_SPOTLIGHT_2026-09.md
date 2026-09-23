@@ -45,32 +45,24 @@ That is the exact boundary AgenTrust asked us to keep clear.
 
 ## Capture procedure
 
-Use a fresh virtual environment inside the DSR job workspace. Do not install into the host Python environment and do not bypass PEP 668.
+Run the bounded capture orchestrator from a clean checkout of the spotlight branch:
 
 ```bash
-python3 -m venv .spotlight-venv
-.spotlight-venv/bin/python -m pip install \
-  -c docs/agentrust-spotlight-runtime-constraints-py314.txt \
-  -e '.[trace,dev]'
-```
-
-Run the relevant regression tests:
-
-```bash
-.spotlight-venv/bin/python -m pytest -q \
-  tests/test_trace.py \
-  tests/test_trace_real_verifier.py \
-  tests/test_agentrust_spotlight_demo.py
-```
-
-Then run the publication demo from the **same checkout and same virtual environment**:
-
-```bash
-.spotlight-venv/bin/python scripts/agentrust_spotlight_demo.py
+python3 scripts/agentrust_spotlight_capture.py
 cat artifacts/agentrust-spotlight/spotlight-manifest.json
 ```
 
-Do not capture screenshots until both the regression set and demo return success on the same immutable revision.
+The orchestrator removes any prior spotlight venv, creates a fresh `.spotlight-venv`, installs the TRACE verifier through the publication runtime constraint set, runs:
+
+```text
+tests/test_trace.py
+tests/test_trace_real_verifier.py
+tests/test_agentrust_spotlight_demo.py
+```
+
+and then executes the publication demo from that same environment.
+
+Do not install into the host Python environment, do not bypass PEP 668, and do not capture screenshots unless the orchestrator exits successfully on the same immutable revision used for the screenshots.
 
 ## Screenshot 1 — valid TRACE
 
