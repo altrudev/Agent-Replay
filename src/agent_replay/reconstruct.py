@@ -12,6 +12,7 @@ from .analyze import (
     confidence,
     evidence_gaps,
     mismatches,
+    not_observed,
 )
 from .model import CanonicalEvent
 from .normalize import (
@@ -28,10 +29,15 @@ def _timeline(events: list[CanonicalEvent]) -> list[dict[str, Any]]:
     out = []
     for event in events:
         mm = mismatches(event)
+        missing = not_observed(event)
         if not event.expected:
             status = "UNASSESSED"
+        elif mm:
+            status = "DIVERGENT"
+        elif missing:
+            status = "UNASSESSED"
         else:
-            status = "DIVERGENT" if mm else "VALID"
+            status = "VALID"
 
         out.append(
             {
@@ -44,6 +50,7 @@ def _timeline(events: list[CanonicalEvent]) -> list[dict[str, Any]]:
                 "source_line": event.source_line,
                 "evidence": event.evidence,
                 "mismatches": mm,
+                "not_observed": missing,
             }
         )
     return out
