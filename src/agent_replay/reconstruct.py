@@ -14,6 +14,7 @@ from .analyze import (
     mismatches,
 )
 from .model import CanonicalEvent
+from .evidence_model import build_evidence_model
 from .normalize import (
     DEFAULT_MAX_BYTES,
     DEFAULT_MAX_DEPTH,
@@ -136,6 +137,7 @@ def reconstruct_events(
             "STRUCTURAL_ONLY: completeness describes supplied assertions and explicit "
             "causal links; it does not prove that all real-world telemetry was captured."
         ),
+        "ddc_evidence_model": build_evidence_model(events),
         "reproducibility": "NOT_TESTED",
         "reconstruction_status": (
             "DIVERGENCE_RECONSTRUCTED" if divergences else "NO_DIVERGENCE_ESTABLISHED"

@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from agent_replay.normalize import EvidenceFormatError
-from agent_replay.reconstruct import reconstruct
+from agent_replay.reconstruct import reconstruct, reconstruct_records
 from agent_replay.report import render_text
 
 
@@ -218,3 +218,119 @@ def test_text_report_contains_core_findings():
     assert "policy_version: expected=v19 observed=v17" in text
     assert "refund-agent: PRIMARY" in text
     assert "EVIDENCE_LABELS_ONLY" in text
+
+
+def test_ddc_evidence_model_preserves_three_clocks_and_no_retroactive_knowledge():
+    records = [
+        {
+            "event_id": "accepted",
+            "timestamp": "2026-01-01T10:01:00Z",
+            "actor": "provider",
+            "kind": "accepted",
+            "evidence": {
+                "ddc_evidence": {
+                    "claim": "provider accepted request",
+                    "transition": "accepted_downstream",
+                    "evidence_class": "later_authoritative",
+                    "clocks": {
+                        "event_time": "2026-01-01T10:01:00Z",
+                        "evidence_created_at": "2026-01-01T10:08:00Z",
+                        "evidence_available_at": "2026-01-01T10:08:00Z",
+                        "decision_time": "2026-01-01T10:05:00Z"
+                    },
+                    "source": {
+                        "id": "provider-receipt",
+                        "authority_scope": ["provider acceptance"]
+                    },
+                    "provenance": ["provider", "receipt-store"]
+                }
+            }
+        }
+    ]
+
+    report = reconstruct_records(records, input_sha256="0" * 64)
+    model = report["ddc_evidence_model"]
+    record = model["records"][0]
+    decision = model["decision_reconstruction"]
+
+    assert record["clocks"]["event_time"] == "2026-01-01T10:01:00Z"
+    assert record["clocks"]["evidence_created_at"] == "2026-01-01T10:08:00Z"
+    assert record["clocks"]["evidence_available_at"] == "2026-01-01T10:08:00Z"
+    assert record["available_at_decision"] is False
+    assert decision["retroactive_knowledge_risk_event_ids"] == ["accepted"]
+
+
+def test_ddc_decision_reconstruction_separates_required_and_consulted_evidence():
+    records = [
+        {
+            "event_id": "retry",
+            "timestamp": "2026-01-01T10:05:00Z",
+            "actor": "sender-agent",
+            "kind": "retry",
+            "evidence": {
+                "ddc_evidence": {
+                    "claim": "retry was justified",
+                    "evidence_class": "contemporaneous",
+                    "clocks": {
+                        "decision_time": "2026-01-01T10:05:00Z",
+                        "evidence_available_at": "2026-01-01T10:04:59Z"
+                    },
+                    "required_evidence": ["status-check", "authority-check"],
+                    "consulted_evidence": ["authority-check"],
+                    "unresolved_assumptions": ["status unknown"]
+                }
+            }
+        }
+    ]
+
+    report = reconstruct_records(records, input_sha256="1" * 64)
+    point = report["ddc_evidence_model"]["decision_reconstruction"]["decision_points"][0]
+
+    assert point["available_at_decision"] is True
+    assert point["missing_required_evidence"] == ["status-check"]
+    assert point["decision_basis"] == "REQUIRED_EVIDENCE_NOT_CONSULTED"
+    assert point["unresolved_assumptions"] == ["status unknown"]
+
+
+def test_ddc_evidence_model_preserves_branches_and_contradictions():
+    records = [
+        {
+            "event_id": "first",
+            "timestamp": "2026-01-01T10:00:00Z",
+            "actor": "agent",
+            "kind": "dispatch",
+            "evidence": {
+                "ddc_evidence": {
+                    "branch_id": "attempt-1",
+                    "evidence_class": "contemporaneous",
+                    "contradictions": ["provider status conflicts with local timeout"]
+                }
+            }
+        },
+        {
+            "event_id": "retry",
+            "timestamp": "2026-01-01T10:05:00Z",
+            "actor": "agent",
+            "kind": "dispatch",
+            "evidence": {
+                "ddc_evidence": {
+                    "branch_id": "attempt-2",
+                    "evidence_class": "contemporaneous"
+                }
+            }
+        }
+    ]
+
+    report = reconstruct_records(records, input_sha256="2" * 64)
+    model = report["ddc_evidence_model"]
+
+    assert model["branches"] == {
+        "attempt-1": ["first"],
+        "attempt-2": ["retry"],
+    }
+    assert model["contradictions"] == [
+        {
+            "event_id": "first",
+            "claims": ["provider status conflicts with local timeout"],
+        }
+    ]
