@@ -486,9 +486,13 @@ The DDC checkout referenced by `DDC_RADIAL_ROOT` is executable local code and mu
 
 No hosted infrastructure or GitHub Actions are required.
 
-## Author
+## Author and provenance
 
-Created by **Valentyn Rukhaylo / Altru.dev**
+Created by **[Valentyn Rukhaylo](https://altru.dev/about) / [Altru.dev](https://altru.dev/)**.
+
+Related assurance practice: [DDC Assurance Lab](https://altru.dev/ddc-assurance-lab) · [ddcal.ca](https://ddcal.ca/). Agent Replay remains standalone; DDC/DDCAL are not runtime dependencies of the core.
+
+See [PROVENANCE.md](PROVENANCE.md), [AUTHORS.md](AUTHORS.md), and [CITATION.cff](CITATION.cff) for canonical attribution and scope.
 
 LinkedIn: https://www.linkedin.com/in/val-rukhaylo-437a1b3b6/
 
