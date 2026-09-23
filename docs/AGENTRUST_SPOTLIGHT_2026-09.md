@@ -59,7 +59,8 @@ Run the relevant regression tests:
 ```bash
 .spotlight-venv/bin/python -m pytest -q \
   tests/test_trace.py \
-  tests/test_trace_real_verifier.py
+  tests/test_trace_real_verifier.py \
+  tests/test_agentrust_spotlight_demo.py
 ```
 
 Then run the publication demo from the **same checkout and same virtual environment**:
