@@ -9,6 +9,8 @@
 - Added explicit repository/future-product licensing and ownership boundary without narrowing prior Apache-2.0 grants.
 - Added NOTICE with copyright, trademark, third-party, and AgenTrust interoperability boundaries.
 - Corrected the supported security line from stale 0.5.x to current 0.6.x.
+- Fixed incident-v2 schema drift so the documented `INCOMPLETE` reproducibility state is valid.
+- Added a versioned authoritative-field manifest and executable platform-contract regression gates.
 
 
 ## 0.6.0
