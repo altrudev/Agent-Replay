@@ -2,7 +2,7 @@
 
 ## Supported release
 
-The current supported development line is Agent Replay 0.5.x.
+The current supported development line is Agent Replay 0.6.x.
 
 ## APS evidence boundary
 
