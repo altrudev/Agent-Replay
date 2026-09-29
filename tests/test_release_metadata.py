@@ -44,3 +44,10 @@ def test_release_smoke_build_backend_is_declared_for_dev_tests():
 
     assert any(item.startswith("setuptools") for item in build_requirements)
     assert any(item.startswith("setuptools") for item in dev_requirements)
+
+
+def test_license_metadata_uses_spdx_and_packages_notices():
+    project = _pyproject(ROOT / "pyproject.toml")
+    assert project["project"]["license"] == "Apache-2.0"
+    assert project["project"]["license-files"] == ["LICENSE", "NOTICE"]
+    assert "License :: OSI Approved :: Apache Software License" not in project["project"]["classifiers"]
