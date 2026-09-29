@@ -1,0 +1,12 @@
+Agent Replay
+Copyright 2026 Valentyn Rukhaylo / Altru.dev
+
+The Agent Replay source code released in this repository is licensed under the Apache License, Version 2.0, as stated in LICENSE and applicable source/package metadata.
+
+The Apache-2.0 license grant for versions and source already released under that license is not revoked or narrowed by later product, packaging, trademark, or commercial licensing decisions.
+
+Agent Replay, Altru.dev, product names, logos, and branding are not licensed as trademarks by the Apache License. The Apache License permits only the trademark use described in its Section 6.
+
+Third-party integrations and optional dependencies retain their own copyrights and licenses. In particular, AgenTrust TRACE support is optional and interoperates with separately distributed AgenTrust packages; inclusion or interoperability does not imply ownership of those projects by Altru.dev or ownership of Agent Replay by AgenTrust.
+
+Future separately distributed adapters, user interfaces, hosted services, enterprise features, or marketplace products may be offered under different terms when they are not included in this Apache-2.0 Work. Their applicable license must be stated in their own distribution and must not be inferred from this repository.

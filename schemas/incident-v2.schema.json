@@ -31,7 +31,7 @@
     "evidence_gaps": {"type": "array", "items": {"$ref": "#/$defs/evidenceGap"}},
     "evidence_completeness": {"enum": ["INCOMPLETE", "COMPLETE_FOR_SUPPLIED_ASSERTIONS"]},
     "evidence_completeness_scope": {"type": "string", "minLength": 1},
-    "reproducibility": {"enum": ["NOT_TESTED", "REPRODUCED", "DRIFTED"]},
+    "reproducibility": {"enum": ["NOT_TESTED", "REPRODUCED", "INCOMPLETE", "DRIFTED"]},
     "reconstruction_status": {"enum": ["DIVERGENCE_RECONSTRUCTED", "NO_DIVERGENCE_ESTABLISHED"]},
     "supplementary_evidence_bundle_sha256": {"$ref": "#/$defs/sha256"},
     "trace_evidence": {"$ref": "#/$defs/traceEvidence"}

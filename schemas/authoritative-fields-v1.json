@@ -1,0 +1,13 @@
+{
+  "schema": "agent-replay.authoritative-fields.v1",
+  "incident-v2": [
+    "schema", "input_sha256", "canonical_sha256", "event_count", "expectation_coverage", "expectation_scope",
+    "timeline", "first_provable_divergence", "divergences", "causal_chain", "attribution", "attribution_scope",
+    "confidence", "confidence_scope", "evidence_gaps", "evidence_completeness", "evidence_completeness_scope",
+    "reproducibility", "reconstruction_status", "supplementary_evidence_bundle_sha256", "trace_evidence"
+  ],
+  "aps-authority-reconstruction-v2": [
+    "schema", "input_sha256", "adapter_validation", "input_provenance", "external_conformance", "identity",
+    "authority", "policy", "binding", "execution", "observed_execution", "execution_status", "evidence_boundary"
+  ]
+}

@@ -21,6 +21,7 @@ def test_all_public_schemas_are_valid_json_schema():
         "public-radial-review-v1.schema.json",
         "share-bundle-v1.schema.json",
         "aps-authority-reconstruction-v2.schema.json",
+        "incident-v2.schema.json",
     ):
         jsonschema.Draft202012Validator.check_schema(_schema(name))
 
@@ -67,3 +68,9 @@ def test_sanitized_aps_conforms_to_public_schema():
     jsonschema.Draft202012Validator(
         _schema("public-aps-share-v1.schema.json")
     ).validate(public)
+
+
+def test_incident_schema_includes_all_reproducibility_states():
+    schema = _schema("incident-v2.schema.json")
+    states = schema["properties"]["reproducibility"]["enum"]
+    assert states == ["NOT_TESTED", "REPRODUCED", "INCOMPLETE", "DRIFTED"]
