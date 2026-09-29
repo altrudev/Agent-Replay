@@ -12,6 +12,8 @@ Current hardening line: **v0.6.0**.
 
 - See [CHANGELOG.md](CHANGELOG.md) for release history.
 - See [SECURITY.md](SECURITY.md) before processing sensitive or untrusted evidence.
+- See [docs/PLATFORM_ADAPTER_CONTRACT.md](docs/PLATFORM_ADAPTER_CONTRACT.md) for the mandatory authority/conformance boundary for VS Code, GitHub, and other platform surfaces.
+- See [docs/LICENSING.md](docs/LICENSING.md) and [NOTICE](NOTICE) for the repository and future-product licensing boundary.
 
 ## v0.6 — authority-safe APS interoperability
 
