@@ -48,7 +48,7 @@ If an adapter cannot preserve a critical evidence field, semantic operator, veri
 
 ## Conformance gate
 
-Each adapter release MUST run shared fixtures through the core reference path and the adapter path. Authoritative outputs MUST compare equal after removal of explicitly non-authoritative presentation/transport metadata.
+Each adapter release MUST run shared fixtures through the core reference path and the adapter path. Authoritative outputs MUST compare equal after removal of explicitly non-authoritative presentation/transport metadata. The versioned machine-readable authoritative-field manifest in `schemas/authoritative-fields-v1.json` defines the minimum comparison surface; adapters MAY preserve additional fields but MUST NOT omit or alter fields identified there when applicable.
 
 An adapter that fails this invariance test is not a conforming Agent Replay adapter and MUST NOT be released as such.
 
