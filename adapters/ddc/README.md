@@ -9,8 +9,21 @@ The standalone Agent Replay core does **not** import or require DDC.
 Point the adapter at a local checkout of the private DDC repository:
 
 ```bash
-export DDC_RADIAL_ROOT=/path/to/ddc
+export DDC_RADIAL_ROOT=/opt/ddc-approved
 ```
+
+**Operator-enrolled source required.** For code execution, the adapter now
+requires a root-owned, group/world-nonwritable DDC checkout and its `src`
+directory and every file/importable module within it, plus a root-owned,
+group/world-nonwritable exact lowercase SHA-256
+for `src/radial_frequency_v10.py` at
+`/etc/agent-replay/ddc-radial.sha256` (the parent directory must also be
+root-owned). Installation and rotation must be performed by a trusted operator,
+not by the model or the calling client. An ordinary writable development
+checkout or an unprovisioned pin will fail closed. Validate all imported
+dependencies and interpreter search paths before granting the runtime
+privileges; this pin alone does not constitute independent attestation.
+No installation or key provisioning is performed by the adapter.
 
 Install the optional adapter:
 

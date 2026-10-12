@@ -17,6 +17,40 @@ from .render import render_radial
 class RadialAdapterError(RuntimeError):
     pass
 
+# Independent operator provisioning is required before execution of DDC code.
+# This adapter is not an authorization engine; the pin only prevents accidental
+# or attacker-selected code replacement under a constrained service identity.
+_TRUST_FILE = Path("/etc/agent-replay/ddc-radial.sha256")
+
+
+def _require_operator_owned(path: Path) -> None:
+    if path.is_symlink() or not path.exists():
+        raise RadialAdapterError("DDC runtime has no trusted immutable source")
+    metadata = path.stat()
+    if metadata.st_uid != 0 or metadata.st_mode & 0o022:
+        raise RadialAdapterError("DDC runtime source or pin lacks root-owned write protection")
+
+
+def _verify_radial_source(module_path: Path, source_bytes: bytes) -> str:
+    """Verify protected pin and source custody *before* executing source bytes."""
+    # Parent-owned executable modules can import sibling modules. Restrict
+    # the whole import-root metadata, not only the module's final pathname.
+    for path in (_TRUST_FILE, module_path):
+        for component in (path, *path.parents):
+            _require_operator_owned(component)
+    # A pin on one module is not sufficient if it can import replaceable
+    # siblings or native extensions from the same directory.
+    for entry in module_path.parent.rglob("*"):
+        _require_operator_owned(entry)
+    expected = _TRUST_FILE.read_text(encoding="ascii").strip()
+    if len(expected) != 64 or any(c not in "0123456789abcdef" for c in expected):
+        raise RadialAdapterError("invalid operator-pinned DDC source digest")
+    actual = hashlib.sha256(source_bytes).hexdigest()
+    if actual != expected:
+        raise RadialAdapterError("DDC source digest differs from operator-approved revision")
+    return actual
+
+
 
 def _load_radial_module():
     root = os.environ.get("DDC_RADIAL_ROOT")
@@ -30,7 +64,7 @@ def _load_radial_module():
     if not module_path.is_file():
         raise RadialAdapterError(f"DDC Radial module not found: {module_path}")
     source_bytes = module_path.read_bytes()
-    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+    source_sha256 = _verify_radial_source(module_path, source_bytes)
     module_name = "agent_replay_ddc_radial_frequency_v10"
     module = types.ModuleType(module_name)
     module.__file__ = str(module_path)
@@ -40,6 +74,9 @@ def _load_radial_module():
     try:
         code = compile(source_bytes, str(module_path), "exec")
         exec(code, module.__dict__)
+    except BaseException:
+        sys.modules.pop(module_name, None)
+        raise
     finally:
         try:
             sys.path.remove(str(src_dir))
