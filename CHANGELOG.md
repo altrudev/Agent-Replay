@@ -166,3 +166,10 @@ Release-hardening pass following the full repository DDC Radial audit.
 ## 0.1.0
 
 - Initial standalone Agent Replay prototype.
+
+### Customer self-service (0.6.0 additive)
+
+- Added Apache-2.0 private local customer workspaces, key lifecycle and reviewed
+  source attestation, preserving evidence-state v1 and source honesty boundaries.
+- Added an offline loopback dashboard, diagnostics and consented minimal exports.
+- Hosted identity, payments and independent verification remain separate work.

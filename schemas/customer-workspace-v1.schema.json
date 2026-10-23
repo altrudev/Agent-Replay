@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-replay.customer-workspace.v1",
+  "title": "agent-replay.customer-workspace.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "sources",
+    "keys",
+    "reports"
+  ],
+  "properties": {
+    "schema": {
+      "const": "agent-replay.customer-workspace.v1"
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "provenance",
+          "active_key"
+        ],
+        "properties": {
+          "mode": {
+            "const": "SELF_ATTESTED"
+          },
+          "provenance": {
+            "const": "CUSTOMER_ATTESTED"
+          },
+          "active_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "keys": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "status",
+          "predecessor",
+          "provenance"
+        ],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "RETIRED",
+              "REVOKED"
+            ]
+          },
+          "predecessor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provenance": {
+            "const": "CUSTOMER_ATTESTED"
+          }
+        }
+      }
+    },
+    "reports": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "format",
+          "attestation",
+          "input_sha256"
+        ],
+        "properties": {
+          "format": {
+            "enum": [
+              "evidence",
+              "jsonl",
+              "otel",
+              "aps"
+            ]
+          },
+          "attestation": {
+            "enum": [
+              "SUPPLIED_CLAIMS",
+              "CUSTOMER_ATTESTED"
+            ]
+          },
+          "input_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    }
+  }
+}
