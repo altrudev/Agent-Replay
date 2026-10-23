@@ -176,6 +176,17 @@ def _doctor() -> dict:
 
 
 def _run(args, parser: argparse.ArgumentParser) -> None:
+    if args.command == "customer":
+        from .customer import Workspace
+        if args.customer_action in ("serve", "start"):
+            from .customer_web import serve
+            serve(args.workspace)
+        else:
+            with Workspace(args.workspace, create=args.customer_action == "init") as workspace:
+                result = workspace.diagnostics() if args.customer_action == "diagnostics" else workspace.public()
+                print(strict_json.dumps(result, indent=2, sort_keys=True))
+        return
+
     if args.command == "assess-evidence":
         from .evidence_state import assess_bytes, canonical, decode, fields, read_local
         anchors = {}
@@ -305,6 +316,10 @@ def main():
 
     doctor_parser = sub.add_parser("doctor", help="Check core and optional integration readiness")
     doctor_parser.add_argument("-o", "--output")
+
+    customer = sub.add_parser("customer", help="Private offline customer workspace and dashboard")
+    customer.add_argument("customer_action", choices=("init", "start", "serve", "status", "diagnostics"))
+    customer.add_argument("--workspace", required=True)
 
     args = parser.parse_args()
     try:

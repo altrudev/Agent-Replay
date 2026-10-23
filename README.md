@@ -511,3 +511,11 @@ LinkedIn: https://www.linkedin.com/in/val-rukhaylo-437a1b3b6/
 ## License
 
 Apache-2.0
+
+### Customer-operated local dashboard
+
+Run `agent-replay customer serve --workspace "$HOME/my-replay-workspace"` and open
+its one-use localhost session link. Enroll your own source, import evidence,
+review attestation, run replay, rotate trust and export a minimal summary offline.
+No hosted account, payments or independent certification is included.
+See [customer quick start, trust boundaries and limitations](docs/customer-self-service.md).
