@@ -6,19 +6,45 @@ from typing import Any
 from .model import CanonicalEvent
 
 
-def mismatches(event: CanonicalEvent) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for field, expected in event.expected.items():
-        observed = event.observed.get(field)
-        if observed != expected:
-            out.append(
-                {
-                    "field": field,
-                    "expected": expected,
-                    "observed": observed,
-                }
-            )
+def comparisons(event: CanonicalEvent) -> list[dict[str, Any]]:
+    out = []
+    for field in sorted(event.expected.keys() | event.observed.keys()):
+        item = {"field": field}
+        if field in event.expected:
+            item["expected"] = event.expected[field]
+        if field in event.observed:
+            item["observed"] = event.observed[field]
+        item["status"] = (
+            "NOT_COMPARABLE" if field not in event.expected else
+            "NOT_OBSERVED" if field not in event.observed else
+            "MATCH" if event.observed[field] == event.expected[field] else "MISMATCH"
+        )
+        out.append(item)
     return out
+
+
+def mismatches(event: CanonicalEvent) -> list[dict[str, Any]]:
+    return [{k: v for k, v in item.items() if k != "status"}
+            for item in comparisons(event) if item["status"] == "MISMATCH"]
+
+
+def first_frontier(events, divergences):
+    from .normalize import _event_time_ns
+    if not divergences:
+        return []
+    by_id = {event.event_id: event for event in events}
+    earliest = _event_time_ns(by_id[divergences[0]["event_id"]])
+    candidates = {d["event_id"] for d in divergences
+                  if _event_time_ns(by_id[d["event_id"]]) == earliest}
+    downstream = {}
+    frontier = []
+    for event in events:
+        inherited = any(downstream.get(p, False) for p in event.parent_ids)
+        if event.event_id in candidates and not inherited:
+            frontier.append(event.event_id)
+        downstream[event.event_id] = inherited or event.event_id in candidates
+    frontier_ids = set(frontier)
+    return [d for d in divergences if d["event_id"] in frontier_ids]
 
 
 def build_divergences(
@@ -44,22 +70,6 @@ def build_divergences(
     return divergences
 
 
-def _ancestor_index(events: list[CanonicalEvent]) -> dict[str, frozenset[str]]:
-    """Build ancestor closures once in topological order.
-
-    normalize.py guarantees that parents precede children, so each closure can
-    reuse already-computed parent closures instead of traversing the graph once
-    per divergence.
-    """
-    ancestors: dict[str, frozenset[str]] = {}
-    for event in events:
-        found: set[str] = set()
-        for parent_id in event.parent_ids:
-            found.add(parent_id)
-            found.update(ancestors.get(parent_id, ()))
-        ancestors[event.event_id] = frozenset(found)
-    return ancestors
-
 
 def causal_chain(
     events: list[CanonicalEvent],
@@ -70,8 +80,8 @@ def causal_chain(
 
     by_id = {event.event_id: event for event in events}
     divergent_ids = {item["event_id"] for item in divergences}
-    first_id = divergences[0]["event_id"]
-    ancestors = _ancestor_index(events)
+    frontier_ids = {d["event_id"] for d in first_frontier(events, divergences)}
+    limit = 128
 
     # Prefer explicit provenance links. Where none exist, preserve temporal
     # sequence without claiming an unproved causal edge.
@@ -79,9 +89,20 @@ def causal_chain(
     for item in divergences:
         event = by_id[item["event_id"]]
         explicit = [pid for pid in event.parent_ids if pid in by_id]
-        divergent_ancestors = sorted(
-            set(ancestors.get(event.event_id, ())) & divergent_ids
-        )
+        # Traverse per divergence: linear working memory, no transitive closures.
+        seen = set()
+        pending = list(event.parent_ids)
+        found = set()
+        while pending:
+            parent = pending.pop()
+            if parent in seen:
+                continue
+            seen.add(parent)
+            if parent in divergent_ids:
+                found.add(parent)
+            pending.extend(by_id[parent].parent_ids)
+        ancestor_count = len(found)
+        divergent_ancestors = sorted(found)[:limit]
         chain.append(
             {
                 "event_id": event.event_id,
@@ -90,13 +111,16 @@ def causal_chain(
                 "actor": event.actor,
                 "relationship": (
                     "ROOT_DIVERGENCE"
-                    if event.event_id == first_id
+                    if event.event_id in frontier_ids
                     else "EXPLICITLY_DOWNSTREAM"
                     if divergent_ancestors
                     else "TEMPORALLY_DOWNSTREAM"
                 ),
                 "direct_parent_ids": explicit,
                 "divergent_ancestor_ids": divergent_ancestors,
+                "divergent_ancestor_count": ancestor_count,
+                "ancestors_truncated": ancestor_count > limit,
+                "ancestor_output_limit": limit,
             }
         )
     return chain
@@ -113,25 +137,25 @@ def attribution(
         item["event_id"]: item["relationship"]
         for item in chain
     }
-    first_id = divergences[0]["event_id"]
+    first_ids = {item["event_id"] for item in chain if item["relationship"] == "ROOT_DIVERGENCE"}
     actors: dict[str, list[str]] = defaultdict(list)
     for item in divergences:
         actors[item["actor"]].append(item["event_id"])
 
     out: list[dict[str, Any]] = []
     for actor, event_ids in actors.items():
-        if first_id in event_ids:
+        if first_ids.intersection(event_ids):
             role = "PRIMARY"
-            basis = "actor owns the earliest provable divergence"
+            basis = "source actor label associated with the earliest divergence frontier"
         elif any(
             downstream.get(event_id) == "EXPLICITLY_DOWNSTREAM"
             for event_id in event_ids
         ):
             role = "CONTRIBUTING"
-            basis = "actor owns a divergent event explicitly downstream of another divergence"
+            basis = "source actor label associated with a divergent event explicitly downstream of another divergence"
         else:
             role = "DOWNSTREAM"
-            basis = "actor owns later divergent evidence without an explicit causal edge"
+            basis = "source actor label associated with later divergent evidence without an explicit causal edge"
 
         out.append(
             {
@@ -139,6 +163,7 @@ def attribution(
                 "role": role,
                 "event_ids": event_ids,
                 "basis": basis,
+                "role_scope": "DEPRECATED_ASSOCIATION_ONLY: roles imply neither blame nor authenticated identity",
             }
         )
 
@@ -168,14 +193,14 @@ def evidence_gaps(
     gaps: list[dict[str, Any]] = []
 
     for event in events:
-        if not event.expected:
+        if not event.expected or any(c["status"] == "NOT_OBSERVED" for c in comparisons(event)):
             gaps.append(
                 {
                     "type": "UNASSESSED_EVENT",
                     "event_id": event.event_id,
                     "kind": event.kind,
                     "actor": event.actor,
-                    "basis": "event has no caller-supplied expected-state assertion",
+                    "basis": "event lacks expected-state assertions or required observations",
                     "effect": "Agent Replay cannot establish validity or divergence for this event",
                 }
             )

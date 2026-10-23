@@ -1,0 +1,147 @@
+{
+  "schema": "agent-replay.incident.v2",
+  "input_sha256": "378115ffd6401fdb9c44d13921f4e6c691348a174966a2d145512b31609f044a",
+  "canonical_sha256": "2a10ea0d816e45db34becc530e8934a0123f54235aa11829a6c6709a1b506dd8",
+  "event_count": 2,
+  "expectation_coverage": {
+    "status": "COMPLETE",
+    "events_with_expectations": 2,
+    "total_events": 2,
+    "ratio": 1.0,
+    "claim": "No divergence can be established for events lacking expected-state evidence."
+  },
+  "expectation_scope": "CALLER_SUPPLIED_ASSERTIONS: expected-state values are supplied by the input evidence and are not independently authenticated by Agent Replay.",
+  "timeline": [
+    {
+      "event_id": "a",
+      "timestamp": "2026-01-01T00:00:00.000000Z",
+      "actor": "private-actor",
+      "kind": "test",
+      "status": "DIVERGENT",
+      "parent_ids": [],
+      "source_line": 1,
+      "evidence": {},
+      "mismatches": [
+        {
+          "field": "private-field",
+          "expected": "private-expected",
+          "observed": "private-observed"
+        }
+      ]
+    },
+    {
+      "event_id": "b",
+      "timestamp": "2026-01-01T00:00:01.000000Z",
+      "actor": "private-actor",
+      "kind": "test",
+      "status": "DIVERGENT",
+      "parent_ids": [
+        "a"
+      ],
+      "source_line": 2,
+      "evidence": {},
+      "mismatches": [
+        {
+          "field": "private-field",
+          "expected": "private-expected",
+          "observed": "private-observed"
+        }
+      ]
+    }
+  ],
+  "first_provable_divergence": {
+    "event_id": "a",
+    "timestamp": "2026-01-01T00:00:00.000000Z",
+    "actor": "private-actor",
+    "kind": "test",
+    "parent_ids": [],
+    "source_line": 1,
+    "evidence": {},
+    "mismatches": [
+      {
+        "field": "private-field",
+        "expected": "private-expected",
+        "observed": "private-observed"
+      }
+    ]
+  },
+  "divergences": [
+    {
+      "event_id": "a",
+      "timestamp": "2026-01-01T00:00:00.000000Z",
+      "actor": "private-actor",
+      "kind": "test",
+      "parent_ids": [],
+      "source_line": 1,
+      "evidence": {},
+      "mismatches": [
+        {
+          "field": "private-field",
+          "expected": "private-expected",
+          "observed": "private-observed"
+        }
+      ]
+    },
+    {
+      "event_id": "b",
+      "timestamp": "2026-01-01T00:00:01.000000Z",
+      "actor": "private-actor",
+      "kind": "test",
+      "parent_ids": [
+        "a"
+      ],
+      "source_line": 2,
+      "evidence": {},
+      "mismatches": [
+        {
+          "field": "private-field",
+          "expected": "private-expected",
+          "observed": "private-observed"
+        }
+      ]
+    }
+  ],
+  "causal_chain": [
+    {
+      "event_id": "a",
+      "timestamp": "2026-01-01T00:00:00.000000Z",
+      "kind": "test",
+      "actor": "private-actor",
+      "relationship": "ROOT_DIVERGENCE",
+      "direct_parent_ids": [],
+      "divergent_ancestor_ids": []
+    },
+    {
+      "event_id": "b",
+      "timestamp": "2026-01-01T00:00:01.000000Z",
+      "kind": "test",
+      "actor": "private-actor",
+      "relationship": "EXPLICITLY_DOWNSTREAM",
+      "direct_parent_ids": [
+        "a"
+      ],
+      "divergent_ancestor_ids": [
+        "a"
+      ]
+    }
+  ],
+  "attribution": [
+    {
+      "actor": "private-actor",
+      "role": "PRIMARY",
+      "event_ids": [
+        "a",
+        "b"
+      ],
+      "basis": "actor owns the earliest provable divergence"
+    }
+  ],
+  "attribution_scope": "EVIDENCE_LABELS_ONLY: actor identities are asserted by source evidence and are not independently authenticated by Agent Replay.",
+  "confidence": "HIGH",
+  "confidence_scope": "STRUCTURAL_ONLY: confidence reflects mismatch and graph structure, not independent truth, identity, or policy provenance.",
+  "evidence_gaps": [],
+  "evidence_completeness": "COMPLETE_FOR_SUPPLIED_ASSERTIONS",
+  "evidence_completeness_scope": "STRUCTURAL_ONLY: completeness describes supplied assertions and explicit causal links; it does not prove that all real-world telemetry was captured.",
+  "reproducibility": "NOT_TESTED",
+  "reconstruction_status": "DIVERGENCE_RECONSTRUCTED"
+}

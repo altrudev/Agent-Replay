@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from agent_replay import strict_json
 import re
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ _SENSITIVE_PATTERNS = (
 
 
 def _json_bytes(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return strict_json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -48,7 +49,7 @@ def _collect_aliases(incident: dict[str, Any]) -> tuple[dict[str, str], dict[str
                 for value in item.get(key) or []:
                     if isinstance(value, str):
                         event_ids.append(value)
-            for mismatch in item.get("mismatches") or []:
+            for mismatch in (item.get("mismatches") or []) + (item.get("comparisons") or []):
                 if isinstance(mismatch, dict) and isinstance(mismatch.get("field"), str):
                     fields.append(mismatch["field"])
 
@@ -139,6 +140,13 @@ def _safe_event(item: dict[str, Any], actor_aliases: dict[str, str], event_alias
         "parents": _alias_list(item.get("parent_ids"), event_aliases),
         "mismatches": _safe_mismatches(item.get("mismatches"), field_aliases, include_values=include_values),
     }
+    out["comparisons"] = [
+        {"assertion": field_aliases.get(c["field"], "assertion-unknown"),
+         "status": c["status"], "expected_present": "expected" in c,
+         "observed_present": "observed" in c,
+         **({k: _safe_scalar(c[k]) for k in ("expected", "observed") if k in c} if include_values else {})}
+        for c in item.get("comparisons", [])
+    ]
     if include_status and "status" in item:
         out["status"] = str(item.get("status"))
     return out
@@ -177,6 +185,9 @@ def sanitize_incident(incident: dict[str, Any], *, include_values: bool = False)
         "confidence": incident.get("confidence"),
         "timeline": [_safe_event(item, actor_aliases, event_aliases, kind_aliases, field_aliases, include_values=include_values) for item in incident.get("timeline") or [] if isinstance(item, dict)],
         "first_provable_divergence": safe_first,
+        **({"first_divergence_order": incident["first_divergence_order"]} if "first_divergence_order" in incident else {}),
+        **({"first_provable_divergence_set": [_safe_event(item, actor_aliases, event_aliases, kind_aliases, field_aliases, include_values=include_values, include_status=False) for item in incident["first_provable_divergence_set"]]} if "first_provable_divergence_set" in incident else {}),
+        **({"causal_ancestor_output_scope": incident["causal_ancestor_output_scope"]} if "causal_ancestor_output_scope" in incident else {}),
         "divergences": [_safe_event(item, actor_aliases, event_aliases, kind_aliases, field_aliases, include_values=include_values, include_status=False) for item in incident.get("divergences") or [] if isinstance(item, dict)],
         "causal_chain": [{
             "event": event_aliases.get(str(item.get("event_id", "")), "event-unknown"),
@@ -185,6 +196,9 @@ def sanitize_incident(incident: dict[str, Any], *, include_values: bool = False)
             "relationship": item.get("relationship"),
             "direct_parents": _alias_list(item.get("direct_parent_ids"), event_aliases),
             "divergent_ancestors": _alias_list(item.get("divergent_ancestor_ids"), event_aliases),
+            "ancestors_truncated": item.get("ancestors_truncated", False),
+            "divergent_ancestor_count": item.get("divergent_ancestor_count"),
+            "ancestor_output_limit": item.get("ancestor_output_limit"),
         } for item in incident.get("causal_chain") or [] if isinstance(item, dict)],
         "attribution": attribution,
         "evidence_gaps": gaps,
@@ -301,7 +315,7 @@ def sanitize_radial(review: dict[str, Any]) -> dict[str, Any]:
 
 
 def _fail_if_sensitive(value: Any) -> None:
-    text = json.dumps(value, sort_keys=True, ensure_ascii=False)
+    text = strict_json.dumps(value, sort_keys=True, ensure_ascii=False)
     for pattern in _SENSITIVE_PATTERNS:
         match = pattern.search(text)
         if match:
@@ -337,9 +351,9 @@ def build_share_bundle(incident: dict[str, Any], radial: dict[str, Any] | None =
 
 
 def write_share_bundle(incident_path: str | Path, output_path: str | Path, *, radial_path: str | Path | None = None, agent_replay_commit: str | None = None, include_values: bool = False) -> Path:
-    incident = json.loads(Path(incident_path).read_text(encoding="utf-8"))
-    radial = json.loads(Path(radial_path).read_text(encoding="utf-8")) if radial_path is not None else None
+    incident = strict_json.loads(Path(incident_path).read_text(encoding="utf-8"))
+    radial = strict_json.loads(Path(radial_path).read_text(encoding="utf-8")) if radial_path is not None else None
     bundle = build_share_bundle(incident, radial, agent_replay_commit=agent_replay_commit, include_values=include_values)
     target = Path(output_path)
-    target.write_text(json.dumps(bundle, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    target.write_text(strict_json.dumps(bundle, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return target

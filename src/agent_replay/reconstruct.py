@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+from agent_replay import strict_json
 from pathlib import Path
 from typing import Any, Iterable
 
 from .analyze import (
     attribution,
+    comparisons,
+    first_frontier,
     build_divergences,
     causal_chain,
     confidence,
@@ -31,7 +34,7 @@ def _timeline(events: list[CanonicalEvent]) -> list[dict[str, Any]]:
         if not event.expected:
             status = "UNASSESSED"
         else:
-            status = "DIVERGENT" if mm else "VALID"
+            status = "INCOMPLETE" if any(c["status"] == "NOT_OBSERVED" for c in comparisons(event)) else "DIVERGENT" if mm else "VALID"
 
         out.append(
             {
@@ -44,6 +47,7 @@ def _timeline(events: list[CanonicalEvent]) -> list[dict[str, Any]]:
                 "source_line": event.source_line,
                 "evidence": event.evidence,
                 "mismatches": mm,
+                "comparisons": comparisons(event),
             }
         )
     return out
@@ -63,7 +67,7 @@ def _canonical_digest(events: list[CanonicalEvent]) -> str:
         }
         for event in events
     ]
-    encoded = json.dumps(
+    encoded = strict_json.dumps(
         payload,
         sort_keys=True,
         separators=(",", ":"),
@@ -103,6 +107,7 @@ def reconstruct_events(
     divergences = build_divergences(events)
     chain = causal_chain(events, divergences)
     gaps = evidence_gaps(events, divergences, chain)
+    frontier = first_frontier(events, divergences)
 
     return {
         "schema": "agent-replay.incident.v2",
@@ -115,7 +120,10 @@ def reconstruct_events(
             "the input evidence and are not independently authenticated by Agent Replay."
         ),
         "timeline": _timeline(events),
-        "first_provable_divergence": divergences[0] if divergences else None,
+        "first_provable_divergence": frontier[0] if len(frontier) == 1 else None,
+        "first_provable_divergence_set": frontier,
+        "first_divergence_order": "AMBIGUOUS" if len(frontier) > 1 else "UNIQUE" if frontier else "NONE",
+        "causal_ancestor_output_scope": "TRUNCATED" if any(c["ancestors_truncated"] for c in chain) else "COMPLETE",
         "divergences": divergences,
         "causal_chain": chain,
         "attribution": attribution(divergences, chain),

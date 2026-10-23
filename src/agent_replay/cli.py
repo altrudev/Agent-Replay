@@ -2,6 +2,7 @@ import argparse
 import hashlib
 import importlib.metadata
 import json
+from agent_replay import strict_json
 import os
 import sys
 from pathlib import Path
@@ -37,7 +38,7 @@ def _write_output(text: str, output: str | None) -> None:
 
 def _emit(value, as_json: bool, output: str | None = None):
     if as_json:
-        text = json.dumps(value, indent=2, sort_keys=True) + "\n"
+        text = strict_json.dumps(value, indent=2, sort_keys=True) + "\n"
     else:
         text = render_text(value)
         if not text.endswith("\n"):
@@ -60,7 +61,7 @@ def _supplementary_bundle_sha256(incident: dict, trace_summary: dict) -> str:
         "trace_record_sha256": trace_summary["record_sha256"],
         "trace_trusted_key_sha256": trace_summary["trusted_key_sha256"],
     }
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    encoded = strict_json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
 
@@ -81,7 +82,7 @@ def _detect_format(path: str, *, max_bytes: int = DEFAULT_MAX_BYTES) -> str:
         try:
             if source.stat().st_size > max_bytes:
                 return "otel"
-            raw = json.loads(source.read_text(encoding="utf-8"))
+            raw = strict_json.loads(source.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return "otel"
         if isinstance(raw, dict) and isinstance(raw.get("envelope"), dict):
@@ -109,7 +110,7 @@ def _reconstruct_input(args) -> dict:
         if size > args.max_bytes:
             raise ValueError(f"input size {size} exceeds max_bytes={args.max_bytes}")
         raw = source.read_bytes()
-        document = json.loads(raw.decode("utf-8"))
+        document = strict_json.loads(raw.decode("utf-8"))
         if not isinstance(document, dict):
             raise ValueError("APS input must be a JSON object")
         input_sha256 = hashlib.sha256(raw).hexdigest()
@@ -177,7 +178,7 @@ def _doctor() -> dict:
 def _run(args, parser: argparse.ArgumentParser) -> None:
     if args.command == "doctor":
         result = _doctor()
-        _write_output(json.dumps(result, indent=2, sort_keys=True) + "\n", args.output)
+        _write_output(strict_json.dumps(result, indent=2, sort_keys=True) + "\n", args.output)
         return
 
     if args.command == "ingest" and args.ingest_format == "otel":
@@ -193,7 +194,7 @@ def _run(args, parser: argparse.ArgumentParser) -> None:
 
     if args.command == "verify-trace":
         summary = verify_trace_record(args.record, args.trusted_key)
-        text = json.dumps(summary, indent=2, sort_keys=True) + "\n" if args.json else render_trace_summary(summary) + "\n"
+        text = strict_json.dumps(summary, indent=2, sort_keys=True) + "\n" if args.json else render_trace_summary(summary) + "\n"
         _write_output(text, args.output)
         return
 
@@ -222,14 +223,14 @@ def _run(args, parser: argparse.ArgumentParser) -> None:
     if args.command == "reproduce":
         if bool(args.trace_record) != bool(args.trace_key):
             parser.error("--trace-record and --trace-key must be supplied together")
-        expected = json.loads(Path(args.incident).read_text(encoding="utf-8"))
+        expected = strict_json.loads(Path(args.incident).read_text(encoding="utf-8"))
         replay_args = argparse.Namespace(**vars(args))
         replay_args.input = args.evidence
         observed = _reconstruct_input(replay_args)
         if args.trace_record:
             _attach_trace_evidence(observed, args.trace_record, args.trace_key)
         result = compare_reconstruction(expected, observed)
-        _write_output(json.dumps(result, indent=2, sort_keys=True) + "\n", args.output)
+        _write_output(strict_json.dumps(result, indent=2, sort_keys=True) + "\n", args.output)
         if result["status"] != "REPRODUCED":
             raise SystemExit(3)
         return

@@ -146,7 +146,9 @@ def render_text(report: dict[str, Any]) -> str:
     )
     lines.append(f"Reconstruction: {report['reconstruction_status']}")
     lines.append(f"Reproducibility: {report['reproducibility']}")
-    lines.append(f"Confidence: {report['confidence']}")
+    lines.append(f"Structural confidence (supplied evidence only): {report['confidence']}")
+    lines.append(report["attribution_scope"])
+    lines.append(f"Causal ancestor output: {report.get('causal_ancestor_output_scope', 'UNKNOWN')}")
     lines.append(f"Expectation scope: {report['expectation_scope']}")
     lines.append(f"Confidence scope: {report['confidence_scope']}")
     lines.append("")
@@ -159,6 +161,13 @@ def render_text(report: dict[str, Any]) -> str:
         )
 
     lines.append("")
+    if report.get("first_divergence_order") == "AMBIGUOUS":
+        lines.append("FIRST DIVERGENCE FRONTIER: AMBIGUOUS; order not established")
+        for item in report["first_provable_divergence_set"]:
+            lines.append(f"- {item['event_id']} (source actor label: {item['actor']})")
+        _append_evidence_gaps(lines, report)
+        _append_trace(lines, report)
+        return "\n".join(lines)
     if not first:
         lines.append("No provable divergence found.")
         if coverage["status"] in {"NO_EXPECTATIONS", "PARTIAL"}:

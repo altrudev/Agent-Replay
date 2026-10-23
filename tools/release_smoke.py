@@ -126,6 +126,24 @@ def main() -> None:
         if incident_doc.get("reconstruction_status") != "DIVERGENCE_RECONSTRUCTED":
             raise SystemExit("installed-wheel reconstruction did not reproduce expected example")
 
+        # Exercise audit semantics through the installed wheel, not source imports.
+        audit_input = temp / "audit.jsonl"
+        audit_records = [
+            {"event_id": name, "timestamp": "2026-01-01T00:00:00Z",
+             "actor": "asserted", "kind": "check", "expected": {"x": True},
+             "observed": {"x": False}}
+            for name in ("a", "b")
+        ]
+        audit_records.append({"event_id": "missing", "timestamp": "2026-01-01T00:00:00Z",
+                              "kind": "check", "expected": {"x": None}})
+        audit_input.write_text("".join(json.dumps(r) + "\n" for r in audit_records))
+        audit_doc = json.loads(cli("reconstruct", str(audit_input), "--json").stdout)
+        if (audit_doc.get("first_divergence_order") != "AMBIGUOUS"
+                or audit_doc.get("first_provable_divergence") is not None
+                or len(audit_doc.get("first_provable_divergence_set", [])) != 2
+                or audit_doc["timeline"][-1]["status"] != "INCOMPLETE"):
+            raise SystemExit("installed-wheel audit evidence semantics failed")
+
         public = temp / "public-share.json"
         cli("export-share", str(incident), "-o", str(public))
         if not public.is_file() or not json.loads(public.read_text(encoding="utf-8")):

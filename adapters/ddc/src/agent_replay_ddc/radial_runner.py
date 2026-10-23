@@ -4,6 +4,7 @@ import argparse
 from collections import Counter
 import hashlib
 import json
+from agent_replay import strict_json
 import os
 from pathlib import Path
 import sys
@@ -29,22 +30,38 @@ def _load_radial_module():
     module_path = src_dir / "radial_frequency_v10.py"
     if not module_path.is_file():
         raise RadialAdapterError(f"DDC Radial module not found: {module_path}")
+    pin = os.environ.get("DDC_RADIAL_SHA256", "")
+    if len(pin) != 64 or any(c not in "0123456789abcdef" for c in pin):
+        raise RadialAdapterError("DDC_RADIAL_SHA256 must be an operator-supplied lowercase SHA256 pin")
+    # The pin covers this source only. Imported code remains an operator trust boundary.
+    for protected in (module_path, src_dir, src_dir.parent):
+        info = protected.stat()
+        if info.st_uid not in (0, os.getuid()) or info.st_mode & 0o022:
+            raise RadialAdapterError("DDC source and directories must have trusted ownership and no group/world write permission")
     source_bytes = module_path.read_bytes()
     source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+    if source_sha256 != pin:
+        raise RadialAdapterError("DDC Radial source SHA256 does not match operator pin")
     module_name = "agent_replay_ddc_radial_frequency_v10"
     module = types.ModuleType(module_name)
     module.__file__ = str(module_path)
     module.__package__ = ""
+    missing = object()
+    prior_module = sys.modules.get(module_name, missing)
+    prior_path = sys.path[:]
     sys.modules[module_name] = module
     sys.path.insert(0, str(src_dir))
     try:
         code = compile(source_bytes, str(module_path), "exec")
         exec(code, module.__dict__)
+    except BaseException:
+        if prior_module is missing:
+            sys.modules.pop(module_name, None)
+        else:
+            sys.modules[module_name] = prior_module
+        raise
     finally:
-        try:
-            sys.path.remove(str(src_dir))
-        except ValueError:
-            pass
+        sys.path[:] = prior_path
     return module, {"path": "src/radial_frequency_v10.py", "sha256": source_sha256}
 
 
@@ -119,12 +136,12 @@ def main():
     parser.add_argument("--limit", type=int, default=10, help="maximum candidates in concise output (default: 10)")
     args = parser.parse_args()
     try:
-        incident = json.load(sys.stdin)
+        incident = strict_json.load(sys.stdin)
         if not isinstance(incident, dict):
             raise RadialAdapterError("incident input must be a JSON object")
         result = analyze_incident(incident)
         if args.json:
-            json.dump(result, sys.stdout, indent=2, sort_keys=True)
+            strict_json.dump(result, sys.stdout, indent=2, sort_keys=True)
             sys.stdout.write("\n")
         else:
             print(render_radial(incident, result, limit=max(1, args.limit)))

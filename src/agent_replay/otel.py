@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+import math
+from agent_replay import strict_json
 from pathlib import Path
 from typing import Any
 
@@ -28,10 +30,10 @@ def _otel_value(value: Any) -> Any:
         except (TypeError, ValueError):
             return value["intValue"]
     if "doubleValue" in value:
-        try:
-            return float(value["doubleValue"])
-        except (TypeError, ValueError):
-            return value["doubleValue"]
+        raw = value["doubleValue"]
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not math.isfinite(raw):
+            raise OpenTelemetryFormatError("doubleValue must be a finite JSON number")
+        return float(raw)
     if "bytesValue" in value:
         return value["bytesValue"]
     if "arrayValue" in value:
@@ -301,8 +303,8 @@ def load_otlp_json(
         )
     raw = source.read_bytes()
     try:
-        payload = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        payload = strict_json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
         raise OpenTelemetryFormatError(f"invalid OTLP JSON: {exc}") from exc
     if not isinstance(payload, dict):
         raise OpenTelemetryFormatError("OTLP JSON root must be an object")
@@ -319,7 +321,7 @@ def write_canonical_jsonl(
     )
     target = Path(output_path)
     target.write_text(
-        "".join(json.dumps(event, sort_keys=True, ensure_ascii=False) + "\n" for event in events),
+        "".join(strict_json.dumps(event, sort_keys=True, ensure_ascii=False) + "\n" for event in events),
         encoding="utf-8",
     )
     return target

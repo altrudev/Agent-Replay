@@ -1,6 +1,7 @@
 import argparse
 import hashlib
 import json
+from agent_replay import strict_json
 import tempfile
 from pathlib import Path
 
@@ -40,7 +41,7 @@ def _reconstruct(
         if trace_id:
             raise ValueError("trace_id is not valid for APS input")
         raw = _bounded_source(input_path).read_bytes()
-        document = json.loads(raw.decode("utf-8"))
+        document = strict_json.loads(raw.decode("utf-8"))
         if not isinstance(document, dict):
             raise ValueError("APS input must be a JSON object")
         return reconstruct_aps_fixture(document, input_sha256=hashlib.sha256(raw).hexdigest())
@@ -124,7 +125,7 @@ def main():
             parser.error(str(exc))
 
         print(
-            json.dumps(
+            strict_json.dumps(
                 {
                     "schema": "agent-replay.ddc-envelope.v1",
                     "incident": incident,
@@ -144,7 +145,7 @@ def main():
 
         if args.json:
             print(
-                json.dumps(
+                strict_json.dumps(
                     {
                         "schema": "agent-replay.ddc-review.v1",
                         "incident": incident,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.metadata
 import json
+from agent_replay import strict_json
 from pathlib import Path
 from typing import Any
 
@@ -32,8 +33,8 @@ def _sha256(path: str | Path) -> str:
 def _load_json_object(path: str | Path, label: str) -> dict[str, Any]:
     source = Path(path)
     try:
-        value = json.loads(source.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        value = strict_json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
         raise TraceEvidenceError(f"{label} is not valid JSON: {source}") from exc
     if not isinstance(value, dict):
         raise TraceEvidenceError(f"{label} must be a JSON object: {source}")
