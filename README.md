@@ -15,6 +15,20 @@ Current hardening line: **v0.6.0**.
 - See [docs/PLATFORM_ADAPTER_CONTRACT.md](docs/PLATFORM_ADAPTER_CONTRACT.md) for the mandatory authority/conformance boundary for VS Code, GitHub, and other platform surfaces.
 - See [docs/LICENSING.md](docs/LICENSING.md) and [NOTICE](NOTICE) for the repository and future-product licensing boundary.
 
+## Evidence-state v1 assurance layer
+
+A separate offline assessment contract reconstructs actor-specific knowledge from
+three clocks and authenticated delivery/consultation receipts. Source-bound HMAC
+coverage requires separately supplied operator trust anchors. Assertions alone
+cannot establish absence or authorization. Incident-v2 semantics stay unchanged.
+
+```bash
+agent-replay assess-evidence examples/evidence-state-v1/input.json
+```
+
+See [the schema, trust model, limits and unsatisfied release gates](docs/EVIDENCE_STATE_V1.md).
+This layer does not certify production readiness.
+
 ## v0.6 — authority-safe APS interoperability
 
 Agent Replay now accepts APS oracle-safety-check evidence without collapsing claims, authority, policy, and execution into one status.

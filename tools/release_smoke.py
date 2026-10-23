@@ -144,6 +144,48 @@ def main() -> None:
                 or audit_doc["timeline"][-1]["status"] != "INCOMPLETE"):
             raise SystemExit("installed-wheel audit evidence semantics failed")
 
+        evidence_state = json.loads(cli(
+            "assess-evidence", str(ROOT / "examples" / "evidence-state-v1" / "input.json")
+        ).stdout)
+        if (evidence_state.get("schema") != "agent-replay.evidence-state.v1"
+                or evidence_state.get("approval_absence") != "NOT_ESTABLISHED"
+                or evidence_state["coverage"][0]["authentication"] != "SUPPLIED_ASSERTION"):
+            raise SystemExit("installed-wheel evidence-state trust boundary failed")
+
+        # Test the signed-member boundary using only the isolated wheel/std lib.
+        run([sys.executable, '-c', '''
+from agent_replay.evidence_state import SCHEMA, assess, signature
+key = b'wheel-smoke-test-key-0000000000000'
+anchors = {'operator': {'source': 'audit', 'key': key}}
+event = dict(evidence_id='e', source='audit', actor_instance_id='a',
+             channel='approval', action='pay', subject='r', kind='approval',
+             scope=dict(credential='c', operation='pay', resource='r', valid_until=100),
+             event_at=1, observed_at=2, ingested_at=3)
+manifest = dict(manifest_id='m', source='audit', actor_instance_id='a',
+                channel='approval', action='pay', subject='r', start=0, end=10,
+                observed_at=11, ingested_at=12, complete=True, evidence_ids=['e'])
+doc = dict(schema=SCHEMA, context_id='wheel',
+           decision=dict(source='audit', actor_instance_id='a', channel='approval',
+                         action='pay', subject='r', credential='c', since=0, at=10),
+           events=[event], receipts=[], coverage=[manifest])
+def sign(record, kind):
+    record['key_id'] = 'operator'
+    record['signature'] = signature('wheel', kind, record, key)
+sign(event, 'event')
+sign(manifest, 'coverage')
+assert assess(doc, trust_anchors=anchors)['approval_absence'] == 'NOT_ESTABLISHED'
+event['kind'] = 'assertion'
+del event['signature']
+result = assess(doc, trust_anchors=anchors)
+assert result['coverage'][0]['authentication'] == 'AUTHENTICATED_COVERAGE'
+assert not result['coverage'][0]['usable_for_exact_horizon']
+assert result['approval_absence'] == 'NOT_ESTABLISHED'
+doc['events'] = []
+manifest['evidence_ids'] = []
+sign(manifest, 'coverage')
+assert assess(doc, trust_anchors=anchors)['approval_absence'] == 'ABSENT_IN_EXACT_COVERED_SCOPE'
+'''], env=env, cwd=temp)
+
         public = temp / "public-share.json"
         cli("export-share", str(incident), "-o", str(public))
         if not public.is_file() or not json.loads(public.read_text(encoding="utf-8")):

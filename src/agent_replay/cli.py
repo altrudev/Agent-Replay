@@ -176,6 +176,21 @@ def _doctor() -> dict:
 
 
 def _run(args, parser: argparse.ArgumentParser) -> None:
+    if args.command == "assess-evidence":
+        from .evidence_state import assess_bytes, canonical, decode, fields, read_local
+        anchors = {}
+        if args.trust_anchors:
+            supplied = decode(read_local(args.trust_anchors, 65536))
+            if not isinstance(supplied, dict):
+                raise ValueError("trust anchors must be an object")
+            for key_id, anchor in supplied.items():
+                fields(anchor, ("source", "key_hex"))
+                anchors[key_id] = {"source": anchor["source"], "key": bytes.fromhex(anchor["key_hex"])}
+        result = assess_bytes(read_local(args.input), trust_anchors=anchors)
+        # stdout only: persistence/export is an explicit shell redirection.
+        sys.stdout.write(canonical(result).decode("ascii") + "\n")
+        return
+
     if args.command == "doctor":
         result = _doctor()
         _write_output(strict_json.dumps(result, indent=2, sort_keys=True) + "\n", args.output)
@@ -241,6 +256,10 @@ def main():
     parser.add_argument("--version", action="version", version=f"%(prog)s {_version()}")
     parser.add_argument("--debug", action="store_true", help="show tracebacks for failures")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    evidence_parser = sub.add_parser("assess-evidence", help="Offline evidence-state v1 assessment (JSON stdout)")
+    evidence_parser.add_argument("input")
+    evidence_parser.add_argument("--trust-anchors", help="separate operator-owned source-bound HMAC key file")
 
     reconstruct_parser = sub.add_parser("reconstruct", help="Reconstruct an incident from canonical JSONL or OTLP JSON")
     reconstruct_parser.add_argument("input")

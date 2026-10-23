@@ -66,3 +66,37 @@ Final validation (temporary files confined to this clone via TMPDIR):
 - `git diff --check`: passed.
 These results do not establish optional private-integration behavior beyond the
 installed test scope. No commit or push was performed.
+
+## Evidence-state v1 assurance layer — 2026-10-23
+
+A distinct `agent-replay.evidence-state.v1` API/CLI now implements three exact
+clocks, actor-specific horizons, content-bound delivered/consulted receipts,
+source authentication, source-bound signed coverage, exact-scope negative claims,
+and conservative scope/expiry/revocation diagnostics. Existing incident-v2
+semantics and previously published licenses/notices remain unchanged.
+
+The input/output schemas and authoritative field manifest are versioned. Reports
+omit raw labels, credential values and signatures; hashes and clocks still need
+sharing review. Legacy export-share rejects this new schema. See
+[the complete trust model and unsatisfied gates](docs/EVIDENCE_STATE_V1.md).
+Authentication relies on separately enrolled operator HMAC keys, not embedded
+verification assertions, independently established source honesty, or public
+nonrepudiation. Final authority, actor identity and causality remain
+NOT_ESTABLISHED. Revocation freshness requires a policy protocol not implemented
+here. This layer is not a production-readiness certification.
+
+Final local validation (TMPDIR confined to this checkout for the final run):
+
+- `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:adapters/ddc/src python3 -m pytest -q -ra`:
+  **225 passed, 3 skipped** (unavailable optional TRACE/private DDC artifacts).
+- `python3 tools/release_smoke.py`: **AGENT REPLAY RELEASE SMOKE PASS**, including
+  the new CLI in the isolated offline wheel installation.
+- `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:adapters/ddc/src python3 -m pytest -q tests/test_evidence_state.py`:
+  **75 passed**, including adversarial acceptance probes and CLI/API equivalence.
+- Deterministic synthetic benchmark: 512 events, 512 receipts, 1536 manifests;
+  550657 input bytes, 638816 output bytes; 0.602232, 0.575173, 0.599839 seconds
+  on this host. Output SHA-256:
+  `8cfc7fcfe01f19d6495dfbb8d622ce5430937e7e86b5a9907deaf4dee6348ab6`.
+  This measures one bounded workload, not host-independent latency or throughput.
+
+No network, remote writes, deployment, commit or push was performed.

@@ -1,0 +1,499 @@
+{
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "agent-replay.evidence-state.v1"
+    },
+    "context_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "decision": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "actor_instance_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "channel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "at": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            },
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+            }
+          ]
+        },
+        "since": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            },
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+            }
+          ]
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "source",
+        "actor_instance_id",
+        "action",
+        "subject",
+        "channel",
+        "at",
+        "since",
+        "credential"
+      ],
+      "additionalProperties": false
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "actor_instance_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "channel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "kind": {
+            "enum": [
+              "approval",
+              "revocation",
+              "assertion"
+            ]
+          },
+          "scope": {
+            "type": "object",
+            "properties": {
+              "credential": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "operation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "resource": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "valid_until": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9223372036854775808,
+                    "maximum": 9223372036854775807
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "credential",
+              "operation",
+              "resource",
+              "valid_until"
+            ],
+            "additionalProperties": false
+          },
+          "event_at": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+              }
+            ]
+          },
+          "occurred_at": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+              }
+            ]
+          },
+          "observed_at": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+              }
+            ]
+          },
+          "ingested_at": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+              }
+            ]
+          },
+          "key_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "signature": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "source",
+          "actor_instance_id",
+          "action",
+          "subject",
+          "channel",
+          "evidence_id",
+          "kind",
+          "scope",
+          "observed_at",
+          "ingested_at"
+        ],
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "event_at"
+            ],
+            "not": {
+              "required": [
+                "occurred_at"
+              ]
+            }
+          },
+          {
+            "required": [
+              "occurred_at"
+            ],
+            "not": {
+              "required": [
+                "event_at"
+              ]
+            }
+          }
+        ]
+      },
+      "maxItems": 512
+    },
+    "receipts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "actor_instance_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "mode": {
+            "enum": [
+              "delivered",
+              "consulted"
+            ]
+          },
+          "received_at": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+              }
+            ]
+          },
+          "observed_at": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+              }
+            ]
+          },
+          "ingested_at": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+              }
+            ]
+          },
+          "key_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "signature": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "evidence_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "evidence_id",
+          "actor_instance_id",
+          "source",
+          "mode",
+          "received_at",
+          "observed_at",
+          "ingested_at",
+          "evidence_sha256"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 2048
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "actor_instance_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "channel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "manifest_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "start": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+              }
+            ]
+          },
+          "end": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+              }
+            ]
+          },
+          "observed_at": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+              }
+            ]
+          },
+          "ingested_at": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": -9223372036854775808,
+                "maximum": 9223372036854775807
+              },
+              {
+                "type": "string",
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.[0-9]{1,9})?(Z|[+-]\\d{2}:\\d{2})$"
+              }
+            ]
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "maxItems": 512,
+            "uniqueItems": true
+          },
+          "key_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "signature": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "source",
+          "actor_instance_id",
+          "action",
+          "subject",
+          "channel",
+          "manifest_id",
+          "start",
+          "end",
+          "observed_at",
+          "ingested_at",
+          "complete",
+          "evidence_ids"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 2048
+    }
+  },
+  "required": [
+    "schema",
+    "context_id",
+    "decision",
+    "events",
+    "receipts",
+    "coverage"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Replay evidence-state v1 input"
+}
