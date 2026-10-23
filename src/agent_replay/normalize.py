@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import heapq
 import json
+from agent_replay import strict_json
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -206,6 +207,10 @@ def normalize_records(
             raise EvidenceFormatError(f"event count exceeds max_events={max_events}")
         if not isinstance(raw, dict):
             raise EvidenceFormatError(f"line {line_no}: event must be an object")
+        try:
+            strict_json.dumps(raw)
+        except (ValueError, TypeError) as exc:
+            raise EvidenceFormatError(f"line {line_no}: invalid JSON value: {exc}") from exc
         event = _event_from_raw(raw, line_no, max_parents=max_parents)
         if event.event_id in seen:
             raise EvidenceFormatError(
@@ -240,7 +245,7 @@ def normalize_jsonl(
             if len(records) >= max_events:
                 raise EvidenceFormatError(f"event count exceeds max_events={max_events}")
             try:
-                raw = json.loads(line, parse_constant=_reject_json_constant)
+                raw = strict_json.loads(line, parse_constant=_reject_json_constant)
             except (json.JSONDecodeError, ValueError) as exc:
                 raise EvidenceFormatError(
                     f"line {line_no}: invalid JSON: {exc}"

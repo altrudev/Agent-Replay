@@ -94,3 +94,14 @@ DDC Radial is optional second-order analysis used to ask:
 - where could the reconstruction or underlying system still have blind spots?
 
 Deleting `adapters/ddc/` leaves Agent Replay fully functional.
+
+### Source enrollment (audit repair)
+
+The optional loader now fails closed unless `DDC_RADIAL_SHA256` is the
+operator-reviewed lowercase SHA-256 of `src/radial_frequency_v10.py` under
+`DDC_RADIAL_ROOT`. Existing root-only opt-ins must enroll this additional pin.
+The file, source directory and checkout root must be owned by the current user
+or root and must not permit group/world writes. Review and protect imported
+code as well: the pin covers only the named source bytes, not its dependencies.
+The adapter executes operator-trusted local code; it is not a code sandbox.
+Standalone Agent Replay does not require this enrollment or DDC.

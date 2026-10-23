@@ -12,6 +12,7 @@ def _incident() -> dict:
         "reconstruction_status": "DIVERGENCE_RECONSTRUCTED",
         "first_provable_divergence": {"event_id": "event-1"},
         "causal_chain": [],
+        "first_provable_divergence_set": [{"event_id": "event-1"}],
     }
 
 

@@ -1,4 +1,5 @@
 import json
+from agent_replay import strict_json
 import os
 import shlex
 import subprocess
@@ -18,7 +19,7 @@ def run_ddc(incident: dict) -> dict:
 
     proc = subprocess.run(
         shlex.split(command),
-        input=json.dumps(incident),
+        input=strict_json.dumps(incident),
         text=True,
         capture_output=True,
         timeout=60,
@@ -32,7 +33,7 @@ def run_ddc(incident: dict) -> dict:
         )
 
     try:
-        result = json.loads(proc.stdout)
+        result = strict_json.loads(proc.stdout)
     except json.JSONDecodeError as exc:
         raise DDCAdapterError("DDC adapter returned invalid JSON") from exc
 

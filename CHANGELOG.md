@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Evidence audit repairs
+
+Four-state presence-aware comparisons; ambiguous first-divergence frontiers;
+strict JSON ingestion and finite serialization; separate exact-input replay
+identity; scoped actor association language; bounded ancestor output with explicit
+truncation; fail-closed operator-pinned optional DDC source loading. Schemas and
+public shares expose the new evidence states. See AUDIT_REMEDIATION.md for limits.
+
+Second-pass fixes: legacy replay with unavailable frontier/ancestor metadata now
+reports explicit partial-scope INCOMPLETE rather than false DRIFTED or full
+REPRODUCED. Legacy public shares omit absent optional properties. Failed pinned
+DDC execution restores module and import-path state. Regression fixtures retain
+an actual pre-repair v0.6 incident; known drift remains covered.
+
 ### Platform foundation
 
 - Added Platform Adapter Contract 1.0: adapters translate/acquire/render but cannot create stronger forensic semantics than the core.

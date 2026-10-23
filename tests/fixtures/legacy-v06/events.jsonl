@@ -1,0 +1,2 @@
+{"event_id": "a", "timestamp": "2026-01-01T00:00:00Z", "kind": "test", "actor": "private-actor", "expected": {"private-field": "private-expected"}, "observed": {"private-field": "private-observed"}, "parent_ids": []}
+{"event_id": "b", "timestamp": "2026-01-01T00:00:01Z", "kind": "test", "actor": "private-actor", "expected": {"private-field": "private-expected"}, "observed": {"private-field": "private-observed"}, "parent_ids": ["a"]}

@@ -34,7 +34,16 @@ def compare_reconstruction(expected: dict[str, Any], observed: dict[str, Any]) -
     expected_has_trace = isinstance(expected.get("trace_evidence"), dict)
     observed_has_trace = isinstance(observed.get("trace_evidence"), dict)
 
+    # Absence is unknown scope, not an empty frontier or a metadata mismatch.
+    frontier_known = all("first_provable_divergence_set" in value for value in (expected, observed))
+    metadata_fields = ("divergent_ancestor_count", "ancestors_truncated", "ancestor_output_limit")
+    metadata_known = all(
+        all(field in item for field in metadata_fields)
+        for value in (expected, observed) for item in value.get("causal_chain", [])
+    )
     checks = {
+        "exact_input_sha256": expected.get("input_sha256") == observed.get("input_sha256"),
+        "first_provable_divergence_set": [d["event_id"] for d in expected.get("first_provable_divergence_set", [])] == [d["event_id"] for d in observed.get("first_provable_divergence_set", [])] if frontier_known else None,
         "canonical_sha256": expected.get("canonical_sha256") == observed.get("canonical_sha256"),
         "event_count": expected.get("event_count") == observed.get("event_count"),
         "reconstruction_status": expected.get("reconstruction_status") == observed.get("reconstruction_status"),
@@ -42,6 +51,11 @@ def compare_reconstruction(expected: dict[str, Any], observed: dict[str, Any]) -
         "causal_chain": _chain_signature(expected) == _chain_signature(observed),
         "trace_evidence_presence": expected_has_trace == observed_has_trace,
     }
+
+    checks["causal_chain_ancestor_metadata"] = (
+        [tuple(item[field] for field in metadata_fields) for item in expected.get("causal_chain", [])]
+        == [tuple(item[field] for field in metadata_fields) for item in observed.get("causal_chain", [])]
+    ) if metadata_known else None
 
     if expected_has_trace and observed_has_trace:
         checks["trace_record_sha256"] = expected_trace_record == observed_trace_record
@@ -52,20 +66,23 @@ def compare_reconstruction(expected: dict[str, Any], observed: dict[str, Any]) -
     if expected_bundle is not None or observed_bundle is not None:
         checks["supplementary_evidence_bundle_sha256"] = expected_bundle == observed_bundle
 
-    differences = sorted(key for key, passed in checks.items() if not passed)
+    differences = sorted(key for key, passed in checks.items() if passed is False)
+    unavailable = sorted(key for key, passed in checks.items() if passed is None)
     core_keys = {
+        "first_provable_divergence_set",
         "canonical_sha256",
         "event_count",
         "reconstruction_status",
         "first_provable_divergence",
         "causal_chain",
+        "causal_chain_ancestor_metadata",
     }
-    core_reproduced = all(checks[key] for key in core_keys)
+    core_reproduced = all(checks[key] is True for key in core_keys)
     supplementary_missing = expected_has_trace and not observed_has_trace
 
-    if not differences:
-        status = "REPRODUCED"
-    elif core_reproduced and supplementary_missing:
+    if not set(differences) - {"exact_input_sha256"}:
+        status = "INCOMPLETE" if unavailable else "REPRODUCED"
+    elif all(checks[key] is not False for key in core_keys) and supplementary_missing:
         status = "INCOMPLETE"
     else:
         status = "DRIFTED"
@@ -75,6 +92,8 @@ def compare_reconstruction(expected: dict[str, Any], observed: dict[str, Any]) -
         "status": status,
         "evidence_scope": "CORE_PLUS_TRACE" if expected_has_trace else "CORE_ONLY",
         "core_reproduced": core_reproduced,
+        "identity_scope": ("PARTIAL_CANONICAL_SEMANTICS" if unavailable else "CANONICAL_SEMANTICS") + "; exact_input_sha256 separately binds supplied bytes",
+        "unavailable_checks": unavailable,
         "supplementary_evidence": (
             "NOT_REPRODUCED" if supplementary_missing else
             "REPRODUCED" if expected_has_trace and not any(

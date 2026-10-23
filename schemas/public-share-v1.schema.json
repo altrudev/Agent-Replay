@@ -5,6 +5,10 @@
   "type": "object",
   "required": ["schema", "source_schema", "source_input_sha256", "source_canonical_sha256", "event_count", "reconstruction_status", "timeline", "divergences", "causal_chain", "attribution", "evidence_gaps", "scope", "redaction"],
   "properties": {
+    "first_provable_divergence_set": {"type": "array", "items": {"$ref": "#/$defs/event"}},
+    "first_divergence_order": {"enum": ["NONE", "UNIQUE", "AMBIGUOUS"]},
+    "causal_ancestor_output_scope": {"enum": ["COMPLETE", "TRUNCATED"]},
+
     "schema": {"const": "agent-replay.public-share.v1"},
     "source_schema": {"const": "agent-replay.incident.v2"},
     "source_input_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
@@ -45,7 +49,8 @@
         "actor": {"type": "string", "pattern": "^actor-"},
         "parents": {"type": "array", "items": {"type": "string"}},
         "mismatches": {"type": "array", "items": {"$ref": "#/$defs/mismatch"}},
-        "status": {"enum": ["VALID", "DIVERGENT", "UNASSESSED"]}
+        "comparisons": {"type": "array", "items": {"type": "object", "properties": {"status": {"enum": ["MATCH", "MISMATCH", "NOT_OBSERVED", "NOT_COMPARABLE"]}}}},
+        "status": {"enum": ["VALID", "DIVERGENT", "UNASSESSED", "INCOMPLETE"]}
       }
     }
   }
