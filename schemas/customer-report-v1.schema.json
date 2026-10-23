@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-replay.customer-report.v1",
+  "title": "agent-replay.customer-report.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "format",
+    "input_sha256",
+    "analyzed_sha256",
+    "attestation",
+    "coverage_trust",
+    "certification",
+    "warning",
+    "key_provenance",
+    "result"
+  ],
+  "properties": {
+    "schema": {
+      "const": "agent-replay.customer-report.v1"
+    },
+    "format": {
+      "enum": [
+        "evidence",
+        "jsonl",
+        "otel",
+        "aps"
+      ]
+    },
+    "input_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "analyzed_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "attestation": {
+      "enum": [
+        "SUPPLIED_CLAIMS",
+        "CUSTOMER_ATTESTED"
+      ]
+    },
+    "coverage_trust": {
+      "enum": [
+        "CUSTOMER_SOURCE_AUTHENTICATED",
+        "NOT_ESTABLISHED"
+      ]
+    },
+    "certification": {
+      "const": "NOT_INDEPENDENTLY_VERIFIED"
+    },
+    "warning": {
+      "type": "string"
+    },
+    "key_provenance": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "status",
+          "predecessor",
+          "provenance"
+        ],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "RETIRED",
+              "REVOKED"
+            ]
+          },
+          "predecessor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provenance": {
+            "const": "CUSTOMER_ATTESTED"
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "object"
+    }
+  }
+}

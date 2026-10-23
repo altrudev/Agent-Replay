@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agent-replay.customer-export.v1",
+  "title": "agent-replay.customer-export.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "input_sha256",
+    "analyzed_sha256",
+    "attestation",
+    "certification",
+    "warning",
+    "schema",
+    "report_id",
+    "raw_evidence",
+    "secrets",
+    "summary"
+  ],
+  "properties": {
+    "format": {
+      "enum": [
+        "evidence",
+        "jsonl",
+        "otel",
+        "aps"
+      ]
+    },
+    "input_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "analyzed_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "attestation": {
+      "enum": [
+        "SUPPLIED_CLAIMS",
+        "CUSTOMER_ATTESTED"
+      ]
+    },
+    "certification": {
+      "const": "NOT_INDEPENDENTLY_VERIFIED"
+    },
+    "warning": {
+      "type": "string"
+    },
+    "schema": {
+      "const": "agent-replay.customer-export.v1"
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "raw_evidence": {
+      "const": "OMITTED"
+    },
+    "secrets": {
+      "const": "OMITTED"
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverage_trust",
+        "approval_absence",
+        "evidence_count",
+        "known_receipt_count",
+        "reconstruction_status"
+      ],
+      "properties": {
+        "coverage_trust": {
+          "enum": [
+            "CUSTOMER_SOURCE_AUTHENTICATED",
+            "NOT_ESTABLISHED"
+          ]
+        },
+        "approval_absence": {
+          "enum": [
+            "NOT_ESTABLISHED",
+            "ABSENT_IN_EXACT_COVERED_SCOPE",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "evidence_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "known_receipt_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reconstruction_status": {
+          "enum": [
+            "DIVERGENCE_RECONSTRUCTED",
+            "NO_DIVERGENCE_ESTABLISHED",
+            "NOT_APPLICABLE"
+          ]
+        }
+      }
+    }
+  }
+}

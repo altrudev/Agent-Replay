@@ -1,0 +1,179 @@
+{
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "agent-replay.evidence-state.v1"
+    },
+    "ruleset": {
+      "const": "1"
+    },
+    "input_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "canonical_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "trust_binding_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "evidence_ref": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "kind": {
+            "enum": [
+              "approval",
+              "revocation",
+              "assertion"
+            ]
+          },
+          "knowledge": {
+            "enum": [
+              "KNOWN",
+              "MAYBE_AVAILABLE",
+              "NOT_ESTABLISHED",
+              "LATER_OBSERVED"
+            ]
+          },
+          "authenticity": {
+            "enum": [
+              "AUTHENTICATED_SOURCE",
+              "SUPPLIED_ASSERTION"
+            ]
+          },
+          "provenance_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "event_at_ns": {
+            "type": "integer"
+          },
+          "observed_at_ns": {
+            "type": "integer"
+          },
+          "ingested_at_ns": {
+            "type": "integer"
+          },
+          "scope_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "receipt_provenance": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "maxItems": 2048
+          },
+          "authority_evidence": {
+            "enum": [
+              "OUT_OF_SCOPE",
+              "NOT_ESTABLISHED",
+              "REVOCATION_EVIDENCED",
+              "NOT_AUTHORITY_EVIDENCE",
+              "EXPIRED_APPROVAL",
+              "CONFLICTING_REVOCATION",
+              "APPROVAL_EVIDENCED_FRESHNESS_NOT_ESTABLISHED"
+            ]
+          }
+        },
+        "required": [
+          "evidence_ref",
+          "kind",
+          "knowledge",
+          "authenticity",
+          "provenance_sha256",
+          "event_at_ns",
+          "observed_at_ns",
+          "ingested_at_ns",
+          "scope_sha256",
+          "receipt_provenance",
+          "authority_evidence"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 512
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "manifest_ref": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "authentication": {
+            "enum": [
+              "AUTHENTICATED_COVERAGE",
+              "SUPPLIED_ASSERTION"
+            ]
+          },
+          "usable_for_exact_horizon": {
+            "type": "boolean"
+          },
+          "provenance_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "manifest_ref",
+          "authentication",
+          "usable_for_exact_horizon",
+          "provenance_sha256"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 2048
+    },
+    "approval_absence": {
+      "enum": [
+        "ABSENT_IN_EXACT_COVERED_SCOPE",
+        "NOT_ESTABLISHED"
+      ]
+    },
+    "authority": {
+      "const": "NOT_ESTABLISHED"
+    },
+    "identity": {
+      "const": "NOT_ESTABLISHED"
+    },
+    "causality": {
+      "const": "NOT_ESTABLISHED"
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      },
+      "maxItems": 8
+    }
+  },
+  "required": [
+    "schema",
+    "ruleset",
+    "canonical_sha256",
+    "trust_binding_sha256",
+    "evidence",
+    "coverage",
+    "approval_absence",
+    "authority",
+    "identity",
+    "causality",
+    "limitations"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Replay evidence-state v1 output"
+}

@@ -1,0 +1,32 @@
+{
+  "schema": "agent-replay.evidence-state.v1",
+  "context_id": "synthetic-example-1",
+  "decision": {
+    "source": "synthetic-audit",
+    "actor_instance_id": "agent-instance-1",
+    "action": "refund",
+    "subject": "order-1",
+    "channel": "approval",
+    "at": 10,
+    "since": 0,
+    "credential": "credential-1"
+  },
+  "events": [],
+  "receipts": [],
+  "coverage": [
+    {
+      "source": "synthetic-audit",
+      "actor_instance_id": "agent-instance-1",
+      "action": "refund",
+      "subject": "order-1",
+      "channel": "approval",
+      "manifest_id": "asserted-coverage",
+      "start": 0,
+      "end": 10,
+      "observed_at": 11,
+      "ingested_at": 12,
+      "complete": true,
+      "evidence_ids": []
+    }
+  ]
+}
