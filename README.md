@@ -1,5 +1,31 @@
 # Agent Replay
 
+**Your AI agent did something wrong. Agent Replay finds the exact step where it first went wrong, and shows the proof.**
+
+Other tools give you a timeline of what your agent did. Agent Replay goes further: it compares what *should* have happened with what *did* happen, finds the **first provable divergence**, and traces which later failures it caused, and which ones only happened afterwards without evidence linking them.
+
+![Agent Replay visual report: the agent went wrong at step 2 of 5, policy.read, expected v19 got v17](docs/report.png)
+
+**[See the live demo report →](https://altrudev.github.io/Agent-Replay/)**
+
+### Try it in 30 seconds
+
+```bash
+git clone https://github.com/altrudev/Agent-Replay && cd Agent-Replay
+python -m pip install .
+agent-replay reconstruct examples/refund-750/events.jsonl --html report.html
+```
+
+Open `report.html` in your browser. It's a single file. It makes no network requests and runs no servers, and nothing is uploaded. No dependencies are needed at runtime.
+
+Already have an incident JSON? `agent-replay view incident.json -o report.html`. Want an empty viewer you can drop files onto? `agent-replay view -o viewer.html`.
+
+The report includes the full incident, evidence values included. Use `agent-replay export-share` before sending anything outside your team.
+
+---
+
+## How it works
+
 **Standalone incident reconstruction for AI-agent executions.**
 
 Agent Replay answers a narrow forensic question:
