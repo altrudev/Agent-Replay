@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Visual report
+
+- Added `reconstruct --html PATH`: writes a single self-contained visual incident report (no network requests, strict CSP, DOM text rendering only).
+- Added `view [incident.json] -o PATH`: renders an existing incident, or an empty drop-in viewer.
+- The page is a render surface under the Platform Adapter Contract: it embeds the core incident verbatim, adds no findings, uses the visual layout only for `agent-replay.incident.v2`, and lists every field unchanged for other schemas.
+- Added `docs/index.html` live demo (regenerate with `python tools/build_demo.py`; a test fails if it drifts from the core).
+- README opens with a plain-language summary, screenshot and 30-second quickstart.
+
 ### Platform foundation
 
 - Added Platform Adapter Contract 1.0: adapters translate/acquire/render but cannot create stronger forensic semantics than the core.

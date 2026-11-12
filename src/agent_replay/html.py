@@ -1,0 +1,415 @@
+"""Self-contained visual incident report.
+
+The page is a single HTML file with no external requests: no fonts, scripts,
+images, or network calls. Incident data is embedded as inert JSON and rendered
+with DOM text nodes only (never innerHTML), because evidence values are
+untrusted input.
+
+The page is a *view* of an Agent Replay incident. It performs no reconstruction
+of its own and adds no findings; every label maps directly to a field produced
+by the core reconstruction.
+"""
+
+import json
+from pathlib import Path
+
+PLACEHOLDER = "/*__AGENT_REPLAY_INCIDENT__*/null"
+
+
+def _embed_json(value) -> str:
+    text = json.dumps(value, sort_keys=True, ensure_ascii=False)
+    # Neutralise anything that could close the <script> element or confuse an
+    # HTML parser, and the two JS line terminators that are legal in JSON.
+    return (
+        text.replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
+
+
+def render_html(incident=None) -> str:
+    """Return the report page. With ``incident=None`` the page opens on its
+    drop zone and renders whatever incident JSON the viewer drops in."""
+    payload = "null" if incident is None else _embed_json(incident)
+    return TEMPLATE.replace(PLACEHOLDER, payload)
+
+
+def write_html(incident, path) -> Path:
+    target = Path(path)
+    target.write_text(render_html(incident), encoding="utf-8")
+    return target
+
+
+TEMPLATE = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<meta name="referrer" content="no-referrer">
+<title>Agent Replay — incident report</title>
+<style>
+:root{
+  --bg:#1E1A2E; --card:#28233B; --card2:#312B47; --line:#3F3858;
+  --text:#F4F1EA; --muted:#A9A3BC;
+  --ok:#6BBFB0; --root:#FF5A5F; --hit:#E8836A; --gray:#7C7690;
+  --font:"DM Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.45}
+main{max-width:780px;margin:0 auto;padding:28px 18px 64px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}
+.brand{font-weight:800;letter-spacing:.02em;font-size:15px;color:var(--muted)}
+.brand b{color:var(--text)}
+.privacy{font-size:12px;color:var(--muted)}
+button.link{background:none;border:1px solid var(--line);color:var(--text);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+button.link:hover{border-color:var(--muted)}
+
+.verdict{border-radius:16px;padding:22px 22px 18px;margin-bottom:26px;background:var(--card);border:1px solid var(--line)}
+.verdict.bad{border-color:var(--root);box-shadow:0 0 0 1px var(--root) inset}
+.verdict .eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.verdict h1{margin:0 0 10px;font-size:26px;line-height:1.2}
+.verdict .diff{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+.verdict p{margin:6px 0 0;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.chip{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--card2);color:var(--muted)}
+
+.diffrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px}
+.field{font-family:var(--mono);color:var(--muted)}
+.val{font-family:var(--mono);padding:2px 8px;border-radius:6px;background:var(--card2);overflow-wrap:anywhere}
+.val.exp{color:var(--ok)}
+.val.obs{color:var(--root)}
+.pair{display:inline-flex;align-items:center;gap:8px;max-width:100%}
+.tag{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+
+h2{font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:30px 0 12px}
+ol.steps{list-style:none;margin:0;padding:0;position:relative}
+ol.steps::before{content:"";position:absolute;left:17px;top:8px;bottom:8px;width:2px;background:var(--line)}
+li.step{position:relative;padding-left:50px;margin-bottom:12px}
+.dot{position:absolute;left:6px;top:14px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--bg);border:2px solid var(--gray);color:var(--gray)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.step.ok .dot{border-color:var(--ok);color:var(--ok)}
+.step.root .dot{border-color:var(--root);background:var(--root);color:#fff}
+.step.root .card{border-color:var(--root)}
+.step.hit .dot{border-color:var(--hit);color:var(--hit)}
+.step.hit .card{border-color:rgba(232,131,106,.55)}
+.step.unk .card{border-style:dashed}
+.row1{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap}
+.kind{font-weight:700;font-family:var(--mono);font-size:14px;overflow-wrap:anywhere}
+.badge{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.ok .badge{background:rgba(107,191,176,.15);color:var(--ok)}
+.root .badge{background:var(--root);color:#fff}
+.hit .badge{background:rgba(232,131,106,.18);color:var(--hit)}
+.unk .badge{background:var(--card2);color:var(--muted)}
+.meta{font-size:12px;color:var(--muted);margin-top:3px}
+.why{font-size:13px;color:var(--muted);margin-top:8px}
+.mm{margin-top:8px;display:grid;gap:6px}
+
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:10px}
+summary{cursor:pointer;padding:12px 14px;font-weight:600}
+details .body{padding:0 14px 14px;font-size:13px;color:var(--muted)}
+details table{width:100%;border-collapse:collapse}
+details td{padding:5px 0;vertical-align:top;border-top:1px solid var(--line)}
+details td:first-child{width:38%;padding-right:10px;color:var(--muted)}
+details td:last-child{color:var(--text);font-family:var(--mono);font-size:12px;overflow-wrap:anywhere}
+details ul{margin:6px 0 0;padding-left:18px}
+
+#drop{border:2px dashed var(--line);border-radius:16px;padding:42px 20px;text-align:center;cursor:pointer;background:var(--card)}
+#drop.over{border-color:var(--ok)}
+#drop h1{font-size:24px;margin:0 0 8px}
+#drop p{color:var(--muted);margin:6px 0}
+code{font-family:var(--mono);font-size:13px;background:var(--card2);padding:2px 6px;border-radius:6px;overflow-wrap:anywhere}
+.err{color:var(--root);margin-top:12px}
+footer{margin-top:40px;font-size:12px;color:var(--muted);text-align:center}
+footer a{color:var(--muted)}
+@media (max-width:520px){.privacy{display:none}.verdict h1{font-size:22px}}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="brand"><b>Agent Replay</b> · incident report</div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <span class="privacy">Runs in your browser. Nothing is uploaded.</span>
+      <button class="link hidden" id="open-btn" type="button">Open another</button>
+    </div>
+  </header>
+
+  <section id="drop" class="hidden" tabindex="0" role="button" aria-label="Open an incident file">
+    <h1>Drop an incident file here</h1>
+    <p>or click to choose one</p>
+    <p style="margin-top:16px">Make one from your agent's log with:</p>
+    <p><code>agent-replay reconstruct your-log.jsonl --json -o incident.json</code></p>
+    <p>or skip this page and run <code>agent-replay reconstruct your-log.jsonl --html report.html</code></p>
+    <div class="err" id="drop-err" role="alert"></div>
+  </section>
+  <input type="file" id="file" accept=".json,application/json" class="hidden">
+
+  <div id="report"></div>
+
+  <footer>
+    <p id="share-note" class="hidden"><b>Before sharing:</b> this page contains the full incident, including evidence values. To send it outside your team, run <code>agent-replay export-share</code> first.</p>
+    This page only displays what Agent Replay reconstructed. Expected values come from the supplied evidence and are not independently verified.<br>
+    <a href="https://github.com/altrudev/Agent-Replay" rel="noopener noreferrer">github.com/altrudev/Agent-Replay</a> · Altru.dev
+  </footer>
+</main>
+
+<script type="application/json" id="incident-data">/*__AGENT_REPLAY_INCIDENT__*/null</script>
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+
+  function el(tag, cls, text){
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined && text !== null) n.textContent = String(text);
+    return n;
+  }
+  function fmt(v){
+    if (typeof v === "string") return v;
+    try { return JSON.stringify(v); } catch(e){ return String(v); }
+  }
+  function timeOf(ts){
+    var m = /T(\d\d:\d\d:\d\d(?:\.\d{1,3})?)/.exec(ts || "");
+    return m ? m[1].replace(/\.0+$/, "") + " UTC" : (ts || "");
+  }
+  function plural(n, one, many){ return n + " " + (n === 1 ? one : many); }
+
+  function diffRow(m){
+    var r = el("div", "diffrow");
+    r.appendChild(el("span", "field", m.field));
+    var a = el("span", "pair");
+    a.appendChild(el("span", "tag", "expected"));
+    a.appendChild(el("span", "val exp", fmt(m.expected)));
+    var b = el("span", "pair");
+    b.appendChild(el("span", "tag", "got"));
+    b.appendChild(el("span", "val obs", fmt(m.observed)));
+    r.appendChild(a); r.appendChild(b);
+    return r;
+  }
+
+  function kvTable(rows){
+    var t = el("table");
+    rows.forEach(function(r){
+      if (r[1] === undefined || r[1] === null) return;
+      var tr = el("tr");
+      tr.appendChild(el("td", null, r[0]));
+      tr.appendChild(el("td", null, fmt(r[1])));
+      t.appendChild(tr);
+    });
+    return t;
+  }
+
+  function detailsBox(title, body, open){
+    var d = el("details");
+    if (open) d.open = true;
+    d.appendChild(el("summary", null, title));
+    var b = el("div", "body");
+    b.appendChild(body);
+    d.appendChild(b);
+    return d;
+  }
+
+  function renderCore(inc, out){
+    var timeline = Array.isArray(inc.timeline) ? inc.timeline : [];
+    var chain = Array.isArray(inc.causal_chain) ? inc.causal_chain : [];
+    var rel = {}; chain.forEach(function(c){ rel[c.event_id] = c; });
+    var stepNo = {}; timeline.forEach(function(e, i){ stepNo[e.event_id] = i + 1; });
+    var first = inc.first_provable_divergence;
+    var cov = inc.expectation_coverage || {};
+    var unassessed = timeline.filter(function(e){ return e.status === "UNASSESSED"; }).length;
+    var divergent = timeline.filter(function(e){ return e.status === "DIVERGENT"; }).length;
+
+    // ---- verdict ----
+    var v = el("section", "verdict" + (first ? " bad" : ""));
+    if (first) {
+      var n = stepNo[first.event_id];
+      v.appendChild(el("div", "eyebrow", "First provable divergence"));
+      v.appendChild(el("h1", null, "It went wrong at step " + n + " of " + timeline.length + ": " + first.kind));
+      var d = el("div", "mm");
+      (first.mismatches || []).forEach(function(m){ d.appendChild(diffRow(m)); });
+      v.appendChild(d);
+      var later = divergent - 1;
+      var linked = chain.filter(function(c){ return c.relationship === "EXPLICITLY_DOWNSTREAM"; }).length;
+      var msg = "Actor: " + (first.actor || "unknown") + ". ";
+      if (later > 0) {
+        msg += plural(later, "later step was", "later steps were") + " also wrong";
+        msg += linked ? " (" + linked + " linked to this one by evidence)." : ".";
+      } else {
+        msg += "No later steps went wrong.";
+      }
+      v.appendChild(el("p", null, msg));
+    } else {
+      v.appendChild(el("div", "eyebrow", "Result"));
+      v.appendChild(el("h1", null, "No provable divergence found"));
+      v.appendChild(el("p", null, unassessed
+        ? plural(unassessed, "step had", "steps had") + " no expected values, so " + (unassessed === 1 ? "it" : "they") + " could not be checked. This is not proof that everything was correct."
+        : "Every step matched what the evidence said should happen."));
+    }
+    var chips = el("div", "chips");
+    chips.appendChild(el("span", "chip", plural(inc.event_count != null ? inc.event_count : timeline.length, "step", "steps")));
+    if (cov.status) chips.appendChild(el("span", "chip", "Checked: " + (cov.events_with_expectations != null ? cov.events_with_expectations + "/" + cov.total_events : cov.status)));
+    if (inc.confidence) chips.appendChild(el("span", "chip", "Structural confidence: " + inc.confidence));
+    var EVID = {
+      "COMPLETE_FOR_SUPPLIED_ASSERTIONS": "Evidence: complete for what was supplied",
+      "INCOMPLETE": "Evidence: has gaps"
+    };
+    if (inc.evidence_completeness) chips.appendChild(el("span", "chip", EVID[inc.evidence_completeness] || ("Evidence: " + inc.evidence_completeness)));
+    if (inc.reproducibility) chips.appendChild(el("span", "chip", "Reproducibility: " + (inc.reproducibility === "NOT_TESTED" ? "not tested" : inc.reproducibility)));
+    v.appendChild(chips);
+    out.appendChild(v);
+
+    // ---- steps ----
+    out.appendChild(el("h2", null, "What happened, in order"));
+    var ol = el("ol", "steps");
+    timeline.forEach(function(e, i){
+      var c = rel[e.event_id];
+      var cls = "unk", badge = "Not checked", why = null;
+      if (e.status === "VALID") { cls = "ok"; badge = "As expected"; }
+      else if (e.status === "DIVERGENT") {
+        if (c && c.relationship === "ROOT_DIVERGENCE") { cls = "root"; badge = "Went wrong here"; }
+        else {
+          cls = "hit"; badge = "Also wrong";
+          if (c && c.relationship === "EXPLICITLY_DOWNSTREAM") {
+            var src = (c.direct_parent_ids || []).filter(function(p){ return stepNo[p]; }).map(function(p){ return "step " + stepNo[p]; });
+            why = "Linked by evidence to " + (src.length ? src.join(", ") : "an earlier divergence") + ".";
+          } else {
+            why = "Happened later, but no evidence links it to the earlier failure.";
+          }
+        }
+      } else if (e.status === "UNASSESSED") {
+        why = "No expected value was supplied for this step, so it can't be judged.";
+      }
+      var li = el("li", "step " + cls);
+      li.appendChild(el("span", "dot", i + 1));
+      var card = el("div", "card");
+      var r1 = el("div", "row1");
+      r1.appendChild(el("span", "kind", e.kind));
+      r1.appendChild(el("span", "badge", badge));
+      card.appendChild(r1);
+      card.appendChild(el("div", "meta", (e.actor || "unknown actor") + " · " + timeOf(e.timestamp) + " · " + e.event_id));
+      if (e.mismatches && e.mismatches.length) {
+        var mm = el("div", "mm");
+        e.mismatches.forEach(function(m){ mm.appendChild(diffRow(m)); });
+        card.appendChild(mm);
+      }
+      if (why) card.appendChild(el("div", "why", why));
+      li.appendChild(card);
+      ol.appendChild(li);
+    });
+    out.appendChild(ol);
+
+    // ---- details on demand ----
+    out.appendChild(el("h2", null, "Details"));
+    if (Array.isArray(inc.attribution) && inc.attribution.length) {
+      var ul = el("ul");
+      inc.attribution.forEach(function(a){
+        ul.appendChild(el("li", null, a.actor + " — " + a.role + " (" + (a.event_ids || []).join(", ") + "): " + a.basis));
+      });
+      var box = el("div"); box.appendChild(ul);
+      if (inc.attribution_scope) box.appendChild(el("p", null, inc.attribution_scope));
+      out.appendChild(detailsBox("Who was involved", box));
+    }
+    if (Array.isArray(inc.evidence_gaps) && inc.evidence_gaps.length) {
+      var gl = el("ul");
+      inc.evidence_gaps.forEach(function(g){
+        gl.appendChild(el("li", null, (stepNo[g.event_id] ? "Step " + stepNo[g.event_id] + " · " : "") + g.event_id + ": " + g.basis + " — " + g.effect));
+      });
+      var gb = el("div"); gb.appendChild(gl);
+      if (inc.evidence_completeness_scope) gb.appendChild(el("p", null, inc.evidence_completeness_scope));
+      out.appendChild(detailsBox("Gaps in the evidence", gb));
+    }
+    if (inc.trace_evidence && typeof inc.trace_evidence === "object") {
+      var te = inc.trace_evidence;
+      out.appendChild(detailsBox("TRACE evidence (supplementary)", kvTable(Object.keys(te).sort().map(function(k){ return [k, te[k]]; }))));
+    }
+    out.appendChild(detailsBox("What these results do and don't prove", kvTable([
+      ["Expected values", inc.expectation_scope],
+      ["Confidence", inc.confidence_scope],
+      ["Coverage", cov.claim]
+    ])));
+    out.appendChild(detailsBox("Fingerprints and status", kvTable([
+      ["Schema", inc.schema],
+      ["Input format", inc.input_format],
+      ["Reconstruction", inc.reconstruction_status],
+      ["Reproducibility", inc.reproducibility],
+      ["Evidence SHA-256", inc.input_sha256],
+      ["Canonical SHA-256", inc.canonical_sha256],
+      ["Selected trace ID", inc.selected_trace_id],
+      ["Supplementary bundle SHA-256", inc.supplementary_evidence_bundle_sha256]
+    ])));
+  }
+
+  function renderGeneric(inc, out){
+    var v = el("section", "verdict");
+    v.appendChild(el("div", "eyebrow", "Report"));
+    v.appendChild(el("h1", null, inc.schema || "Agent Replay document"));
+    v.appendChild(el("p", null, "This report type doesn't have a visual layout yet, so every field is listed below unchanged."));
+    out.appendChild(v);
+    var rows = Object.keys(inc).sort().map(function(k){ return [k, inc[k]]; });
+    out.appendChild(detailsBox("All fields", kvTable(rows), true));
+  }
+
+  function render(inc){
+    var out = $("report");
+    while (out.firstChild) out.removeChild(out.firstChild);
+    $("drop").classList.add("hidden");
+    $("open-btn").classList.remove("hidden");
+    $("share-note").classList.remove("hidden");
+    // Only the schema this layout was written for gets the visual view. Any
+    // other version falls back to showing every field, so nothing is dropped.
+    if (inc && inc.schema === "agent-replay.incident.v2" && Array.isArray(inc.timeline)) renderCore(inc, out);
+    else renderGeneric(inc, out);
+    window.scrollTo(0, 0);
+  }
+
+  function showDrop(msg){
+    var out = $("report");
+    while (out.firstChild) out.removeChild(out.firstChild);
+    $("drop").classList.remove("hidden");
+    $("share-note").classList.add("hidden");
+    $("drop-err").textContent = msg || "";
+  }
+
+  var MAX = 32 * 1024 * 1024;
+  function readFile(f){
+    if (!f) return;
+    if (f.size > MAX) { showDrop("That file is larger than 32 MiB."); return; }
+    var r = new FileReader();
+    r.onload = function(){
+      var data;
+      try { data = JSON.parse(r.result); }
+      catch(e){ showDrop("That isn't a JSON file. Raw logs need the agent-replay command first (see above)."); return; }
+      if (!data || typeof data !== "object" || Array.isArray(data)) { showDrop("That JSON isn't an Agent Replay report."); return; }
+      if (!Array.isArray(data.timeline) && !(typeof data.schema === "string" && data.schema.indexOf("agent-replay") === 0)) {
+        showDrop("That JSON doesn't look like an Agent Replay report. Run: agent-replay reconstruct your-log.jsonl --json -o incident.json");
+        return;
+      }
+      render(data);
+    };
+    r.onerror = function(){ showDrop("Couldn't read that file."); };
+    r.readAsText(f);
+  }
+
+  var drop = $("drop"), file = $("file");
+  drop.addEventListener("click", function(){ file.click(); });
+  drop.addEventListener("keydown", function(e){ if (e.key === "Enter" || e.key === " ") { e.preventDefault(); file.click(); } });
+  file.addEventListener("change", function(){ readFile(file.files[0]); file.value = ""; });
+  ["dragenter","dragover"].forEach(function(t){ document.addEventListener(t, function(e){ e.preventDefault(); drop.classList.add("over"); }); });
+  ["dragleave","drop"].forEach(function(t){ document.addEventListener(t, function(e){ e.preventDefault(); drop.classList.remove("over"); }); });
+  document.addEventListener("drop", function(e){ if (e.dataTransfer && e.dataTransfer.files.length) readFile(e.dataTransfer.files[0]); });
+  $("open-btn").addEventListener("click", function(){ showDrop(""); });
+
+  var initial = null;
+  try { initial = JSON.parse($("incident-data").textContent); } catch(e) { initial = null; }
+  if (initial) render(initial); else showDrop("");
+})();
+</script>
+</body>
+</html>
+"""

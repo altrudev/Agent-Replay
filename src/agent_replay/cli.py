@@ -16,6 +16,7 @@ from .normalize import (
 from .otel import load_otlp_json, write_canonical_jsonl
 from .reconstruct import reconstruct, reconstruct_records
 from .reproduce import compare_reconstruction
+from .html import write_html
 from .report import render_text
 from .share import write_share_bundle
 from .trace import render_trace_summary, verify_trace_record
@@ -208,6 +209,15 @@ def _run(args, parser: argparse.ArgumentParser) -> None:
         print(str(target))
         return
 
+    if args.command == "view":
+        incident = None
+        if args.incident:
+            incident = json.loads(Path(args.incident).read_text(encoding="utf-8"))
+            if not isinstance(incident, dict):
+                raise ValueError("incident JSON must be an object")
+        print(str(write_html(incident, args.output)))
+        return
+
     if args.command == "reconstruct":
         if bool(args.trace_record) != bool(args.trace_key):
             parser.error("--trace-record and --trace-key must be supplied together")
@@ -216,6 +226,9 @@ def _run(args, parser: argparse.ArgumentParser) -> None:
             if str(incident.get("schema", "")).startswith("agent-replay.aps-authority-reconstruction."):
                 raise ValueError("TRACE supplementary evidence is not supported for APS reconstruction")
             _attach_trace_evidence(incident, args.trace_record, args.trace_key)
+        if args.html:
+            target = write_html(incident, args.html)
+            print(f"agent-replay: visual report written to {target}", file=sys.stderr)
         _emit(incident, args.json, args.output)
         return
 
@@ -247,6 +260,7 @@ def main():
     reconstruct_parser.add_argument("--trace-id")
     reconstruct_parser.add_argument("--json", action="store_true")
     reconstruct_parser.add_argument("-o", "--output", help="output path; default stdout")
+    reconstruct_parser.add_argument("--html", metavar="PATH", help="also write a self-contained visual report page")
     reconstruct_parser.add_argument("--trace-record")
     reconstruct_parser.add_argument("--trace-key")
     _add_limits(reconstruct_parser)
@@ -282,6 +296,10 @@ def main():
     share_parser.add_argument("--radial")
     share_parser.add_argument("--agent-replay-commit")
     share_parser.add_argument("--include-values", action="store_true", help="explicitly include scalar assertion values; default is redacted")
+
+    view_parser = sub.add_parser("view", help="Write a visual report page for an existing incident JSON (or an empty drop-in viewer)")
+    view_parser.add_argument("incident", nargs="?", help="incident JSON from 'reconstruct --json'; omit for an empty viewer")
+    view_parser.add_argument("-o", "--output", required=True, help="HTML output path")
 
     doctor_parser = sub.add_parser("doctor", help="Check core and optional integration readiness")
     doctor_parser.add_argument("-o", "--output")
